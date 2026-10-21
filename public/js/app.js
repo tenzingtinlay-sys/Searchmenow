@@ -10,6 +10,7 @@ const routes = {
   '/dashboard/breach-search': ['breach', breach],
   '/dashboard/billing': ['billing', billing],
   '/dashboard/api': ['api', api],
+  '/dashboard/lookup': ['lookup', lookup],
   '/dashboard/settings': ['settings', settings],
 };
 
@@ -30,17 +31,21 @@ document.addEventListener('click', (e) => {
 addEventListener('popstate', render);
 
 function home() {
-  view.innerHTML = `<h1>Dashboard</h1><p class="sub">Enter a username, email or full name. We route it to the right search.</p>
+  view.innerHTML = `<h1>Dashboard</h1><p class="sub">Enter a username, email, full name, phone number or IP. We route it to the right search.</p>
   <form id="hf"><input id="hq" placeholder="username, name@example.com, or Jane Smith" required><button>Search</button></form>
   <div class="cards">
     <a class="card" href="/dashboard/people-search"><b>People search</b><span>Find a name across ${config.peopleSources} open sources.</span></a>
     <a class="card" href="/dashboard/social-search"><b>Social search</b><span>Check a username across ${config.platforms} platforms live.</span></a>
     <a class="card" href="/dashboard/breach-search"><b>Breach search</b><span>Find known data breaches for an email via ${config.breachSource}.</span></a>
+    <a class="card" href="/dashboard/lookup"><b>Phone, email &amp; IP</b><span>Validate numbers and emails, locate IPs${config.apilayer ? ' via APILayer' : ''}.</span></a>
     <a class="card" href="/dashboard/settings"><b>Settings</b><span>API keys and configuration status.</span></a>
   </div>`;
   document.getElementById('hf').onsubmit = (e) => {
     e.preventDefault();
     const v = document.getElementById('hq').value.trim();
+    const isIp = /^(\d{1,3}\.){3}\d{1,3}$/.test(v) || (v.includes(':') && /^[0-9a-f:]+$/i.test(v));
+    const isPhone = /^\+?[\d\s().-]{7,20}$/.test(v);
+    if (isIp || isPhone) return go(`/dashboard/lookup?type=${isIp ? 'ip' : 'phone'}&q=` + encodeURIComponent(v));
     const route = v.includes('@') ? '/dashboard/breach-search' : /\s/.test(v) ? '/dashboard/people-search' : '/dashboard/social-search';
     go(route + '?q=' + encodeURIComponent(v));
   };
@@ -90,6 +95,33 @@ function people() {
   autorun();
 }
 
+function lookup() {
+  const kinds = { phone: ['number', '+14158586273'], email: ['email', 'name@example.com'], ip: ['ip', '8.8.8.8'] };
+  view.innerHTML = `<h1>Phone, email &amp; IP lookup</h1><p class="sub">Powered by ${config.apilayer ? 'APILayer (Numverify, Mailboxlayer, IP to Location)' : 'free sources. Add <code>APILAYER_API_KEY</code> for carrier, SMTP and richer data'}.</p>
+  <form id="f"><select id="k" style="background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:0 10px">
+    <option value="phone">Phone</option><option value="email">Email</option><option value="ip">IP address</option></select>
+    <input id="q" placeholder="+14158586273" required><button id="b">Look up</button></form><div id="out"></div>`;
+  const sel = document.getElementById('k');
+  const qk = new URLSearchParams(location.search).get('type'); if (kinds[qk]) sel.value = qk;
+  const ph = () => { document.getElementById('q').placeholder = kinds[sel.value][1]; }; ph(); sel.onchange = ph;
+  const label = (k) => k.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase());
+  const val = (v) => v === true ? '<span class="pill found">yes</span>' : v === false ? '<span class="pill">no</span>' : Array.isArray(v) ? esc(v.join(', ') || '—') : esc(v ?? '—');
+  document.getElementById('f').onsubmit = async (e) => {
+    e.preventDefault();
+    const [param] = kinds[sel.value], out = document.getElementById('out'), btn = document.getElementById('b');
+    btn.disabled = true; out.innerHTML = '<div class="notice">Looking up…</div>';
+    try {
+      const r = await fetch(`/api/lookup/${sel.value}?${param}=${encodeURIComponent(document.getElementById('q').value)}`);
+      const d = await r.json();
+      if (!r.ok || d.error) throw new Error(d.error);
+      const { source, ...rest } = d;
+      out.innerHTML = `<div class="stats"><span>Source: ${esc(source)}</span></div><div class="results">${Object.entries(rest).map(([k, v]) => `<div class="row"><span class="mono">${esc(label(k))}</span><span>${val(v)}</span></div>`).join('')}</div>`;
+    } catch (err) { out.innerHTML = `<div class="notice err">${esc(err.message)}</div>`; }
+    btn.disabled = false;
+  };
+  autorun();
+}
+
 function api() {
   const base = location.origin;
   const saved = localStorage.getItem('smn_key') || '';
@@ -99,12 +131,12 @@ function api() {
   <div id="kout" style="margin-bottom:24px"></div>
   <p class="lbl" style="padding-left:0">2 · Try it</p>
   <form id="tf"><select id="te" style="background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:0 10px">
-    <option value="social|username">social</option><option value="people|name">people</option><option value="breach|email">breach</option></select>
+    <option value="social|username">social</option><option value="people|name">people</option><option value="breach|email">breach</option><option value="phone|number">phone</option><option value="email|email">email</option><option value="ip|ip">ip</option></select>
     <input id="tq" placeholder="torvalds" required><button id="tb">Send</button></form>
   <pre id="tout" class="notice" style="max-height:320px;overflow:auto;white-space:pre-wrap;display:none"></pre>
   <p class="lbl" style="padding-left:0;margin-top:24px">3 · Endpoints</p>
   <div class="results">
-    ${[['social', 'username=torvalds', 'Username across ' + config.platforms + ' platforms'], ['people', 'name=Jane%20Smith', 'Name across public sources'], ['breach', 'email=you@example.com', 'Known breaches for an email']]
+    ${[['social', 'username=torvalds', 'Username across ' + config.platforms + ' platforms'], ['people', 'name=Jane%20Smith', 'Name across public sources'], ['breach', 'email=you@example.com', 'Known breaches for an email'], ['phone', 'number=%2B14158586273', 'Phone validation, country, carrier'], ['email', 'email=you@example.com', 'Email deliverability check'], ['ip', 'ip=8.8.8.8', 'IP geolocation and ISP']]
       .map(([e, qs, d]) => `<div class="row"><div><b>GET /api/v1/${e}?${qs}</b><br><span class="mono">${d}</span></div></div>`).join('')}
   </div>
   <p class="lbl" style="padding-left:0;margin-top:24px">Example: call from any website</p>
@@ -125,7 +157,7 @@ curl -H "X-API-Key: YOUR_KEY" "${base}/api/v1/breach?email=you@example.com"</pre
     if (!r.ok) return (document.getElementById('kout').innerHTML = `<div class="notice err">${esc(d.error)}</div>`);
     localStorage.setItem('smn_key', d.key); showKey(d.key);
   };
-  document.getElementById('te').onchange = (e) => { document.getElementById('tq').placeholder = { social: 'torvalds', people: 'Jane Smith', breach: 'you@example.com' }[e.target.value.split('|')[0]]; };
+  document.getElementById('te').onchange = (e) => { document.getElementById('tq').placeholder = { social: 'torvalds', people: 'Jane Smith', breach: 'you@example.com', phone: '+14158586273', email: 'you@example.com', ip: '8.8.8.8' }[e.target.value.split('|')[0]]; };
   document.getElementById('tf').onsubmit = async (e) => {
     e.preventDefault();
     const k = localStorage.getItem('smn_key'), out = document.getElementById('tout'), btn = document.getElementById('tb');
@@ -203,6 +235,7 @@ function settings() {
   view.innerHTML = `<h1>Settings</h1><p class="sub">Keys are read from server environment variables and are never sent to the browser.</p>
   <div class="results">
     <div class="row"><div><b>Breach source</b><br><span class="mono">Set HIBP_API_KEY to use Have I Been Pwned instead of XposedOrNot</span></div><span class="pill found">${esc(config.breachSource)}</span></div>
+    <div class="row"><div><b>APILAYER_API_KEY</b><br><span class="mono">Numverify, Mailboxlayer and IP to Location from apilayer.com</span></div><span class="pill ${config.apilayer ? 'found' : ''}">${config.apilayer ? 'configured' : 'using free fallback'}</span></div>
     <div class="row"><div><b>People sources</b><br><span class="mono">GitHub, Wikipedia, ORCID, Mastodon, Bluesky</span></div><span class="pill found">${config.peopleSources}</span></div>
     <div class="row"><div><b>Social platforms</b><br><span class="mono">server/platforms.js</span></div><span class="pill found">${config.platforms}</span></div>
   </div>`;

@@ -2,6 +2,8 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const dns = require('dns').promises;
+const net = require('net');
 const platforms = require('./platforms');
 
 // ---- Free public API keys (stored in data/api-keys.json) ----
@@ -131,6 +133,59 @@ async function peopleSearch(req, res, q) {
   res.end();
 }
 
+// ---- Lookups: phone / email / IP. APILayer when APILAYER_API_KEY is set, free fallbacks otherwise ----
+const AL_KEY = process.env.APILAYER_API_KEY;
+const apilayer = async (p) => {
+  const r = await fetch(`https://api.apilayer.com/${p}`, { headers: { apikey: AL_KEY }, signal: AbortSignal.timeout(12000) });
+  const d = await r.json(); if (!r.ok) throw new Error(d.message || `APILayer error ${r.status}`); return d;
+};
+const CC = { 1: 'US/Canada', 7: 'Russia/Kazakhstan', 20: 'Egypt', 27: 'South Africa', 30: 'Greece', 31: 'Netherlands', 32: 'Belgium', 33: 'France', 34: 'Spain', 39: 'Italy', 41: 'Switzerland', 44: 'United Kingdom', 46: 'Sweden', 47: 'Norway', 49: 'Germany', 52: 'Mexico', 55: 'Brazil', 61: 'Australia', 62: 'Indonesia', 63: 'Philippines', 64: 'New Zealand', 65: 'Singapore', 66: 'Thailand', 81: 'Japan', 82: 'South Korea', 84: 'Vietnam', 86: 'China', 90: 'Turkey', 91: 'India', 92: 'Pakistan', 880: 'Bangladesh', 966: 'Saudi Arabia', 971: 'UAE', 975: 'Bhutan', 977: 'Nepal' };
+
+async function phoneLookup(req, res, q) {
+  const num = (q.get('number') || '').replace(/[^\d+]/g, '');
+  const digits = num.replace(/\D/g, '');
+  if (digits.length < 7 || digits.length > 15) return json(res, 400, { error: 'Enter a phone number with country code, e.g. +14158586273.' });
+  if (AL_KEY) {
+    try {
+      const d = await apilayer(`number_verification/validate?number=${digits}`);
+      return json(res, 200, { source: 'APILayer Numverify', valid: d.valid, number: d.international_format, country: d.country_name, location: d.location, carrier: d.carrier, lineType: d.line_type });
+    } catch (e) { return json(res, 502, { error: e.message }); }
+  }
+  const code = [3, 2, 1].map((n) => digits.slice(0, n)).find((c) => CC[c]);
+  json(res, 200, { source: 'Built-in (add APILAYER_API_KEY for carrier and line type)', valid: !!code, number: '+' + digits, country: code ? CC[code] : 'Unknown', countryCode: code ? '+' + code : null });
+}
+
+async function emailLookup(req, res, q) {
+  const email = (q.get('email') || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(res, 400, { error: 'Enter a valid email address.' });
+  if (AL_KEY) {
+    try {
+      const d = await apilayer(`email_verification/check?email=${encodeURIComponent(email)}`);
+      return json(res, 200, { source: 'APILayer Mailboxlayer', email, formatValid: d.format_valid, mxFound: d.mx_found, smtpCheck: d.smtp_check, disposable: d.disposable, free: d.free, role: d.role, score: d.score, didYouMean: d.did_you_mean || null });
+    } catch (e) { return json(res, 502, { error: e.message }); }
+  }
+  const domain = email.split('@')[1];
+  let mx = [];
+  try { mx = (await dns.resolveMx(domain)).sort((a, b) => a.priority - b.priority).map((m) => m.exchange); } catch {}
+  const FREE = ['gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'icloud.com', 'proton.me', 'protonmail.com', 'aol.com', 'gmx.com', 'mail.com', 'yandex.com'];
+  const DISPOSABLE = ['mailinator.com', 'guerrillamail.com', '10minutemail.com', 'tempmail.com', 'yopmail.com', 'trashmail.com', 'temp-mail.org'];
+  json(res, 200, { source: 'Built-in DNS check (add APILAYER_API_KEY for SMTP check and score)', email, formatValid: true, mxFound: mx.length > 0, mailServers: mx.slice(0, 5), free: FREE.includes(domain), disposable: DISPOSABLE.includes(domain), role: /^(admin|info|support|sales|contact|noreply|no-reply|help)@/.test(email) });
+}
+
+async function ipLookup(req, res, q) {
+  const ip = (q.get('ip') || '').trim();
+  if (!net.isIP(ip)) return json(res, 400, { error: 'Enter a valid IPv4 or IPv6 address.' });
+  try {
+    if (AL_KEY) {
+      const d = await apilayer(`ip_to_location/${ip}`);
+      return json(res, 200, { source: 'APILayer IP to Location', ip, country: d.country_name, region: d.region_name, city: d.city, lat: d.latitude, lon: d.longitude, isp: d.connection?.isp, timezone: d.timezones?.[0] });
+    }
+    const d = await (await fetch(`http://ip-api.com/json/${ip}?fields=status,message,country,regionName,city,isp,org,as,lat,lon,timezone,proxy,hosting`, { signal: AbortSignal.timeout(10000) })).json();
+    if (d.status !== 'success') return json(res, 200, { source: 'ip-api.com', ip, error: d.message || 'No data (private or reserved IP?)' });
+    json(res, 200, { source: 'ip-api.com (free)', ip, country: d.country, region: d.regionName, city: d.city, lat: d.lat, lon: d.lon, isp: d.isp, org: d.org, asn: d.as, timezone: d.timezone, proxyOrVpn: d.proxy, hosting: d.hosting });
+  } catch (e) { json(res, 502, { error: e.message || 'Lookup failed.' }); }
+}
+
 function serveStatic(req, res, pathname) {
   let file = path.normalize(path.join(PUBLIC, pathname));
   if (!file.startsWith(PUBLIC)) return json(res, 403, { error: 'Forbidden' });
@@ -157,7 +212,7 @@ http.createServer(async (req, res) => {
     if (!k) return json(res, 404, { error: 'Unknown key.' });
     return json(res, 200, { name: k.name, created: k.created, usedToday: k.day === today() ? k.used : 0, total: k.total, dailyLimit: DAILY_LIMIT });
   }
-  const v1 = { '/api/v1/social': socialSearch, '/api/v1/people': peopleSearch, '/api/v1/breach': breachSearch }[pathname];
+  const v1 = { '/api/v1/social': socialSearch, '/api/v1/people': peopleSearch, '/api/v1/breach': breachSearch, '/api/v1/phone': phoneLookup, '/api/v1/email': emailLookup, '/api/v1/ip': ipLookup }[pathname];
   if (v1) {
     const err = useKey(req, searchParams);
     if (err) return json(res, 401, { error: err });
@@ -165,8 +220,11 @@ http.createServer(async (req, res) => {
     return json(res, code, body);
   }
   if (pathname === '/api/health') return json(res, 200, { ok: true });
-  if (pathname === '/api/config') return json(res, 200, { platforms: platforms.length, apiDailyLimit: DAILY_LIMIT, breachEnabled: true, breachSource: process.env.HIBP_API_KEY ? 'Have I Been Pwned' : 'XposedOrNot (free)', peopleSources: peopleSources.length });
+  if (pathname === '/api/config') return json(res, 200, { platforms: platforms.length, apiDailyLimit: DAILY_LIMIT, apilayer: !!AL_KEY, breachEnabled: true, breachSource: process.env.HIBP_API_KEY ? 'Have I Been Pwned' : 'XposedOrNot (free)', peopleSources: peopleSources.length });
   if (pathname === '/api/social-search') return socialSearch(req, res, searchParams);
+  if (pathname === '/api/lookup/phone') return phoneLookup(req, res, searchParams);
+  if (pathname === '/api/lookup/email') return emailLookup(req, res, searchParams);
+  if (pathname === '/api/lookup/ip') return ipLookup(req, res, searchParams);
   if (pathname === '/api/people-search') return peopleSearch(req, res, searchParams);
   if (pathname === '/api/breach-search') return breachSearch(req, res, searchParams);
   serveStatic(req, res, pathname);
