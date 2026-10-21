@@ -32,3 +32,11 @@ One-time setup:
 
 Note: on Vercel the file store lives in `/tmp`, which is temporary. Accounts and API keys can reset
 when Vercel recycles the function. For lasting data, connect a database (e.g. Vercel Postgres / Upstash).
+
+### One address only
+In production the app answers only on your main Vercel domain (`SITE_HOST`, default: the project's
+production domain, e.g. `searchmenow.vercel.app`). Any other address — deployment URLs, old domains —
+redirects there with a 308, pages carry a canonical link to it, and browser API calls are only allowed
+from it. Preview deployments for pull requests are not redirected. To use a custom domain, add it in
+Vercel → Project → Domains and set `SITE_HOST` to it. To get `searchmenow.vercel.app`, name the Vercel
+project `searchmenow` when you run `npx vercel link`.
