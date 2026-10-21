@@ -9,7 +9,8 @@ const store = require('./store');
 const { deepSearch } = require('./deep');
 
 // ---- Free public API keys (stored in data/api-keys.json) ----
-const KEY_FILE = path.join(__dirname, '..', 'data', 'api-keys.json');
+const DATA_DIR = process.env.DATA_DIR || (process.env.VERCEL ? '/tmp/searchmenow' : path.join(__dirname, '..', 'data'));
+const KEY_FILE = path.join(DATA_DIR, 'api-keys.json');
 const DAILY_LIMIT = Number(process.env.API_DAILY_LIMIT || 100);
 let keys = {};
 try { keys = JSON.parse(fs.readFileSync(KEY_FILE, 'utf8')); } catch {}
@@ -229,7 +230,8 @@ function serveStatic(req, res, pathname) {
   fs.createReadStream(file).pipe(res);
 }
 
-http.createServer(async (req, res) => {
+// Request handler: used by the standalone server below and by Vercel (api/index.js).
+async function handler(req, res) {
   const { pathname, searchParams } = new URL(req.url, 'http://x');
   // CORS so the public API can be called from any website.
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -316,4 +318,7 @@ http.createServer(async (req, res) => {
   }
   if (pathname === '/api/config') return json(res, 200, { platforms: platforms.length, apiDailyLimit: DAILY_LIMIT, apilayer: !!AL_KEY, analytics: !!CF_TOKEN, breachEnabled: true, breachSource: process.env.HIBP_API_KEY ? 'Have I Been Pwned' : 'XposedOrNot (free)', peopleSources: peopleSources.length, plans: store.PLANS, billingDemo: process.env.BILLING_DEMO === 'true' });
   serveStatic(req, res, pathname);
-}).listen(PORT, '0.0.0.0', () => console.log(`Searchmenow listening on :${PORT}`));
+}
+
+module.exports = handler;
+if (require.main === module) http.createServer(handler).listen(PORT, '0.0.0.0', () => console.log(`Searchmenow listening on :${PORT}`));
