@@ -1,7 +1,26 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>Searchmenow</title>
-<meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="font-family:system-ui,sans-serif;max-width:640px;margin:80px auto;padding:0 16px;color:#1f2937">
-<h1 style="color:#1d4ed8">Searchmenow</h1>
-<p>Placeholder page. The repository does not contain application code yet.</p>
-</body></html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Searchmenow · OSINT dashboard</title>
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<aside class="sidebar">
+  <a class="brand" href="/dashboard"><span class="logo"></span>searchme<span class="dim">now</span></a>
+  <nav>
+    <a href="/dashboard" data-route="home">Home</a>
+    <a href="/dashboard/social-search" data-route="social">Social search</a>
+    <a href="/dashboard/breach-search" data-route="breach">Breach search</a>
+    <p class="lbl">Account</p>
+    <a href="/dashboard/settings" data-route="settings">Settings</a>
+  </nav>
+</aside>
+<main>
+  <header><span id="crumb" class="mono">dashboard</span></header>
+  <section id="view"></section>
+  <footer class="mono">For lawful research on public information only. Do not use results for credit, employment, housing or other FCRA-covered decisions.</footer>
+</main>
+<script src="/js/app.js"></script>
+</body>
+</html>

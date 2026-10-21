@@ -1,0 +1,23 @@
+// Public profile URL patterns. "status" = profile exists when HTTP 200 and 404 otherwise.
+module.exports = [
+  { name: 'GitHub', url: 'https://github.com/{u}', check: 'status' },
+  { name: 'GitLab', url: 'https://gitlab.com/{u}', check: 'status' },
+  { name: 'Reddit', url: 'https://www.reddit.com/user/{u}/about.json', link: 'https://www.reddit.com/user/{u}', check: 'status' },
+  { name: 'Dev.to', url: 'https://dev.to/{u}', check: 'status' },
+  { name: 'Medium', url: 'https://medium.com/@{u}', check: 'status' },
+  { name: 'Keybase', url: 'https://keybase.io/{u}', check: 'status' },
+  { name: 'npm', url: 'https://www.npmjs.com/~{u}', check: 'status' },
+  { name: 'PyPI', url: 'https://pypi.org/user/{u}/', check: 'status' },
+  { name: 'Docker Hub', url: 'https://hub.docker.com/v2/users/{u}/', link: 'https://hub.docker.com/u/{u}', check: 'status' },
+  { name: 'Hacker News', url: 'https://hacker-news.firebaseio.com/v0/user/{u}.json', link: 'https://news.ycombinator.com/user?id={u}', check: 'json-not-null' },
+  { name: 'Chess.com', url: 'https://api.chess.com/pub/player/{u}', link: 'https://www.chess.com/member/{u}', check: 'status' },
+  { name: 'Lichess', url: 'https://lichess.org/api/user/{u}', link: 'https://lichess.org/@/{u}', check: 'status' },
+  { name: 'Steam', url: 'https://steamcommunity.com/id/{u}', check: 'body-absent', marker: 'The specified profile could not be found' },
+  { name: 'SoundCloud', url: 'https://soundcloud.com/{u}', check: 'status' },
+  { name: 'Replit', url: 'https://replit.com/@{u}', check: 'status' },
+  { name: 'Codeberg', url: 'https://codeberg.org/{u}', check: 'status' },
+  { name: 'Bitbucket', url: 'https://bitbucket.org/{u}/', check: 'status' },
+  { name: 'Gravatar', url: 'https://en.gravatar.com/{u}.json', link: 'https://gravatar.com/{u}', check: 'status' },
+  { name: 'Mastodon.social', url: 'https://mastodon.social/@{u}', check: 'status' },
+  { name: 'Telegram', url: 'https://t.me/{u}', check: 'body-present', marker: 'tgme_page_title' },
+];
