@@ -1,13 +1,19 @@
 # Searchmenow
 
-OSINT dashboard: live username search across public platforms and email breach lookup (via Have I Been Pwned).
+Live OSINT search: usernames, names, emails (breaches), phone numbers and IPs across public sources,
+with accounts, daily search credits, search history, opt-out, and a free public API.
 
 ```
-server/          Node HTTP server + API (no dependencies)
-  index.js       /api/social-search, /api/breach-search, static files
-  platforms.js   platform URL patterns — add more here
-public/          dashboard frontend (HTML/CSS/JS)
+server/
+  index.js       HTTP server, search endpoints, /api/v1 public API
+  store.js       users, sessions, credits, history, opt-outs, contact messages (data/store.json)
+  platforms.js   username platforms (add more here)
+public/
+  index.html     app shell
+  js/app.js      public site (/, /pricing, /login, /signup, /contact, /opt-out, /terms, /privacy) + dashboard
+  js/icons.js    icons (Tabler, MIT)
+  css/app.css
 ```
 
-Run: `cp .env.example .env && npm start`, then open http://localhost:3000/dashboard.
-Breach search needs `HIBP_API_KEY` in `.env`.
+Run: `cp .env.example .env && npm start`, open http://localhost:3000. All keys in `.env.example` are optional.
+Runtime data (accounts, API keys) is stored in `data/` and is not committed.

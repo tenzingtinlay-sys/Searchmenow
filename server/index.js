@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const dns = require('dns').promises;
 const net = require('net');
 const platforms = require('./platforms');
+const store = require('./store');
 
 // ---- Free public API keys (stored in data/api-keys.json) ----
 const KEY_FILE = path.join(__dirname, '..', 'data', 'api-keys.json');
@@ -222,16 +223,64 @@ http.createServer(async (req, res) => {
   if (v1) {
     const err = useKey(req, searchParams);
     if (err) return json(res, 401, { error: err });
+    if ([...searchParams.values()].some(store.isOptedOut)) return json(res, 451, { error: 'This identifier has been removed from search results.' });
     const { code, body } = await collect(v1, req, searchParams);
     return json(res, code, body);
   }
   if (pathname === '/api/health') return json(res, 200, { ok: true });
-  if (pathname === '/api/config') return json(res, 200, { platforms: platforms.length, apiDailyLimit: DAILY_LIMIT, apilayer: !!AL_KEY, analytics: !!CF_TOKEN, breachEnabled: true, breachSource: process.env.HIBP_API_KEY ? 'Have I Been Pwned' : 'XposedOrNot (free)', peopleSources: peopleSources.length });
-  if (pathname === '/api/social-search') return socialSearch(req, res, searchParams);
-  if (pathname === '/api/lookup/phone') return phoneLookup(req, res, searchParams);
-  if (pathname === '/api/lookup/email') return emailLookup(req, res, searchParams);
-  if (pathname === '/api/lookup/ip') return ipLookup(req, res, searchParams);
-  if (pathname === '/api/people-search') return peopleSearch(req, res, searchParams);
-  if (pathname === '/api/breach-search') return breachSearch(req, res, searchParams);
+
+  // ---- Accounts ----
+  const cookie = (sid, maxAge) => `sid=${sid}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}`;
+  if (req.method === 'POST' && (pathname === '/api/auth/signup' || pathname === '/api/auth/login')) {
+    const b = await readBody(req);
+    try {
+      const sid = pathname.endsWith('signup') ? store.signup(b.email, b.password) : store.login(b.email, b.password);
+      res.setHeader('Set-Cookie', cookie(sid, 30 * 86400));
+      return json(res, 200, { ok: true });
+    } catch (e) { return json(res, 400, { error: e.message }); }
+  }
+  if (req.method === 'POST' && pathname === '/api/contact') {
+    try { store.addMessage(await readBody(req)); return json(res, 200, { ok: true }); } catch (e) { return json(res, 400, { error: e.message }); }
+  }
+  if (req.method === 'POST' && pathname === '/api/opt-out') {
+    const b = await readBody(req);
+    try { store.addOptOut(b.identifier, b.email); return json(res, 200, { ok: true }); } catch (e) { return json(res, 400, { error: e.message }); }
+  }
+  const user = store.userFromReq(req);
+  if (pathname === '/api/me') return json(res, 200, user ? { user: store.publicUser(user), history: user.history.slice(0, 10) } : { user: null, history: [] });
+  if (pathname.startsWith('/api/account') || pathname === '/api/auth/logout') {
+    if (!user) return json(res, 401, { error: 'Not signed in.' });
+    const b = req.method === 'POST' ? await readBody(req) : {};
+    try {
+      if (pathname === '/api/auth/logout') { store.logout(user._sid); res.setHeader('Set-Cookie', cookie('', 0)); }
+      else if (pathname === '/api/account/plan') {
+        if (b.plan !== 'free' && process.env.BILLING_DEMO !== 'true') throw new Error('Payments are not connected yet. Set BILLING_DEMO=true to switch plans without paying (testing only).');
+        store.setPlan(user, b.plan);
+      }
+      else if (pathname === '/api/account/password') store.changePassword(user, b.current, b.next);
+      else if (pathname === '/api/account/history/clear') store.clearHistory(user);
+      else if (pathname === '/api/account/delete') { store.deleteAccount(user); res.setHeader('Set-Cookie', cookie('', 0)); }
+      else return json(res, 404, { error: 'Not found' });
+      return json(res, 200, { ok: true });
+    } catch (e) { return json(res, 400, { error: e.message }); }
+  }
+
+  // ---- Dashboard searches: require sign-in, cost one credit, respect opt-outs ----
+  const searches = {
+    '/api/social-search': [socialSearch, 'social', 'username'], '/api/people-search': [peopleSearch, 'people', 'name'],
+    '/api/breach-search': [breachSearch, 'breach', 'email'], '/api/lookup/phone': [phoneLookup, 'phone', 'number'],
+    '/api/lookup/email': [emailLookup, 'email', 'email'], '/api/lookup/ip': [ipLookup, 'ip', 'ip'],
+  };
+  if (searches[pathname]) {
+    const [fn, kind, param] = searches[pathname];
+    if (!user) return json(res, 401, { error: 'Sign in to search.' });
+    const query = (searchParams.get(param) || '').trim();
+    if (!query) return json(res, 400, { error: 'Enter something to search.' });
+    if (store.isOptedOut(query)) return json(res, 451, { error: 'This identifier has been removed from search results at the owner’s request.' });
+    const err = store.charge(user, kind, query);
+    if (err) return json(res, 402, { error: err });
+    return fn(req, res, searchParams);
+  }
+  if (pathname === '/api/config') return json(res, 200, { platforms: platforms.length, apiDailyLimit: DAILY_LIMIT, apilayer: !!AL_KEY, analytics: !!CF_TOKEN, breachEnabled: true, breachSource: process.env.HIBP_API_KEY ? 'Have I Been Pwned' : 'XposedOrNot (free)', peopleSources: peopleSources.length, plans: store.PLANS, billingDemo: process.env.BILLING_DEMO === 'true' });
   serveStatic(req, res, pathname);
 }).listen(PORT, '0.0.0.0', () => console.log(`Searchmenow listening on :${PORT}`));

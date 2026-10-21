@@ -2,29 +2,16 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Searchmenow · OSINT dashboard</title>
+<meta name="theme-color" content="#0c0c0e">
+<title>Searchmenow · Username, email &amp; people search</title>
+<meta name="description" content="Live OSINT search for usernames, emails, names, phone numbers and IPs across public sources.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/css/app.css">
 </head>
 <body>
-<aside class="sidebar">
-  <a class="brand" href="/dashboard"><span class="logo"></span>searchme<span class="dim">now</span></a>
-  <nav>
-    <a href="/dashboard" data-route="home">Home</a>
-    <a href="/dashboard/social-search" data-route="social">Social search</a>
-    <a href="/dashboard/people-search" data-route="people">People search</a>
-    <a href="/dashboard/breach-search" data-route="breach">Breach search</a>
-    <a href="/dashboard/lookup" data-route="lookup">Phone, email &amp; IP</a>
-    <a href="/dashboard/api" data-route="api">API</a>
-    <p class="lbl">Account</p>
-    <a href="/dashboard/billing" data-route="billing">Billing</a>
-    <a href="/dashboard/settings" data-route="settings">Settings</a>
-  </nav>
-</aside>
-<main>
-  <header><span id="crumb" class="mono">dashboard</span></header>
-  <section id="view"></section>
-  <footer class="mono">For lawful research on public information only. Do not use results for credit, employment, housing or other FCRA-covered decisions.</footer>
-</main>
+<div id="app"></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="/js/icons.js"></script>
 <script src="/js/app.js"></script>
 </body>
 </html>
