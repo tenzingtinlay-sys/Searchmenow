@@ -135,6 +135,7 @@ async function peopleSearch(req, res, q) {
 
 // ---- Lookups: phone / email / IP. APILayer when APILAYER_API_KEY is set, free fallbacks otherwise ----
 const AL_KEY = process.env.APILAYER_API_KEY;
+const CF_TOKEN = (process.env.CF_BEACON_TOKEN || '').replace(/[^a-zA-Z0-9]/g, '');
 const apilayer = async (p) => {
   const r = await fetch(`https://api.apilayer.com/${p}`, { headers: { apikey: AL_KEY }, signal: AbortSignal.timeout(12000) });
   const d = await r.json(); if (!r.ok) throw new Error(d.message || `APILayer error ${r.status}`); return d;
@@ -191,6 +192,11 @@ function serveStatic(req, res, pathname) {
   if (!file.startsWith(PUBLIC)) return json(res, 403, { error: 'Forbidden' });
   if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(PUBLIC, 'index.html'); // SPA fallback
   res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream' });
+  if (file.endsWith('index.html') && CF_TOKEN) {
+    // Cloudflare Web Analytics: official beacon, loaded only when a token is configured.
+    const tag = `<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='${JSON.stringify({ token: CF_TOKEN, spa: true })}'></script>`;
+    return res.end(fs.readFileSync(file, 'utf8').replace('</body>', tag + '\n</body>'));
+  }
   fs.createReadStream(file).pipe(res);
 }
 
@@ -220,7 +226,7 @@ http.createServer(async (req, res) => {
     return json(res, code, body);
   }
   if (pathname === '/api/health') return json(res, 200, { ok: true });
-  if (pathname === '/api/config') return json(res, 200, { platforms: platforms.length, apiDailyLimit: DAILY_LIMIT, apilayer: !!AL_KEY, breachEnabled: true, breachSource: process.env.HIBP_API_KEY ? 'Have I Been Pwned' : 'XposedOrNot (free)', peopleSources: peopleSources.length });
+  if (pathname === '/api/config') return json(res, 200, { platforms: platforms.length, apiDailyLimit: DAILY_LIMIT, apilayer: !!AL_KEY, analytics: !!CF_TOKEN, breachEnabled: true, breachSource: process.env.HIBP_API_KEY ? 'Have I Been Pwned' : 'XposedOrNot (free)', peopleSources: peopleSources.length });
   if (pathname === '/api/social-search') return socialSearch(req, res, searchParams);
   if (pathname === '/api/lookup/phone') return phoneLookup(req, res, searchParams);
   if (pathname === '/api/lookup/email') return emailLookup(req, res, searchParams);

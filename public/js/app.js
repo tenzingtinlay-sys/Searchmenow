@@ -236,6 +236,7 @@ function settings() {
   <div class="results">
     <div class="row"><div><b>Breach source</b><br><span class="mono">Set HIBP_API_KEY to use Have I Been Pwned instead of XposedOrNot</span></div><span class="pill found">${esc(config.breachSource)}</span></div>
     <div class="row"><div><b>APILAYER_API_KEY</b><br><span class="mono">Numverify, Mailboxlayer and IP to Location from apilayer.com</span></div><span class="pill ${config.apilayer ? 'found' : ''}">${config.apilayer ? 'configured' : 'using free fallback'}</span></div>
+    <div class="row"><div><b>CF_BEACON_TOKEN</b><br><span class="mono">Cloudflare Web Analytics (visitor stats)</span></div><span class="pill ${config.analytics ? 'found' : ''}">${config.analytics ? 'enabled' : 'off'}</span></div>
     <div class="row"><div><b>People sources</b><br><span class="mono">GitHub, Wikipedia, ORCID, Mastodon, Bluesky</span></div><span class="pill found">${config.peopleSources}</span></div>
     <div class="row"><div><b>Social platforms</b><br><span class="mono">server/platforms.js</span></div><span class="pill found">${config.platforms}</span></div>
   </div>`;
