@@ -31,7 +31,6 @@ module.exports = [
   { name: 'Patreon', url: 'https://www.patreon.com/{u}', check: 'status' },
   { name: 'Ko-fi', url: 'https://ko-fi.com/{u}', check: 'status' },
   { name: 'Buy Me a Coffee', url: 'https://www.buymeacoffee.com/{u}', check: 'status' },
-  { name: 'Hashnode', url: 'https://hashnode.com/@{u}', check: 'status' },
   { name: 'Kaggle', url: 'https://www.kaggle.com/{u}', check: 'status' },
   { name: 'LeetCode', url: 'https://leetcode.com/u/{u}/', check: 'status' },
   { name: 'Codewars', url: 'https://www.codewars.com/api/v1/users/{u}', link: 'https://www.codewars.com/users/{u}', check: 'status' },

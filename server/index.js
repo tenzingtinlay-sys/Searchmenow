@@ -47,12 +47,23 @@ function collect(handler, req, q) {
   });
 }
 
+// Simple in-memory rate limiter: max `n` hits per `ms` window per key.
+const hits = new Map();
+function limited(key, n, ms) {
+  const now = Date.now(), arr = (hits.get(key) || []).filter((t) => now - t < ms);
+  arr.push(now); hits.set(key, arr);
+  return arr.length > n;
+}
+const ipOf = (req) => req.socket.remoteAddress || 'unknown';
+
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC = path.join(__dirname, '..', 'public');
 const UA = 'Mozilla/5.0 (X11; Linux x86_64) Searchmenow/1.0';
 const TYPES = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml' };
 
 const json = (res, code, body) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); };
+
+const BOT_WALL = /Just a moment\.\.\.|cf-chl-|challenge-platform|captcha-delivery|px-captcha|sha256-a9bHdQG|Attention Required! \| Cloudflare/i;
 
 async function checkPlatform(p, u) {
   const url = p.url.replace('{u}', encodeURIComponent(u));
@@ -61,9 +72,11 @@ async function checkPlatform(p, u) {
   try {
     const r = await fetch(url, { headers: { 'User-Agent': UA }, redirect: 'follow', signal: AbortSignal.timeout(8000) });
     let found;
+    const text = await r.text();
+    // Anti-bot interstitials answer 200 for every username: report them as blocked, not found.
+    if (BOT_WALL.test(text.slice(0, 20000))) return { platform: p.name, url: link, status: 'blocked', ms: Date.now() - started };
     if (p.check === 'status') found = r.status === 200;
     else {
-      const text = await r.text();
       if (p.check === 'json-not-null') found = r.ok && text.trim() !== 'null';
       else if (p.check === 'body-absent') found = r.ok && !text.includes(p.marker);
       else if (p.check === 'body-present') found = r.ok && text.includes(p.marker);
@@ -209,6 +222,7 @@ http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
 
   if (pathname === '/api/keys' && req.method === 'POST') {
+    if (limited('key:' + ipOf(req), 5, 3600e3)) return json(res, 429, { error: 'Too many keys created. Try again in an hour.' });
     const { name } = await readBody(req);
     const n = String(name || '').trim().slice(0, 60);
     if (!n) return json(res, 400, { error: 'Give your key a name (e.g. your website).' });
@@ -233,6 +247,9 @@ http.createServer(async (req, res) => {
   const cookie = (sid, maxAge) => `sid=${sid}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}`;
   if (req.method === 'POST' && (pathname === '/api/auth/signup' || pathname === '/api/auth/login')) {
     const b = await readBody(req);
+    const kind = pathname.endsWith('signup') ? 'signup' : 'login';
+    if (kind === 'login' && limited(`login:${ipOf(req)}:${String(b.email).toLowerCase()}`, 10, 15 * 60e3)) return json(res, 429, { error: 'Too many sign-in attempts. Wait 15 minutes and try again.' });
+    if (kind === 'signup' && limited('signup:' + ipOf(req), 5, 3600e3)) return json(res, 429, { error: 'Too many accounts created from this network. Try again later.' });
     try {
       const sid = pathname.endsWith('signup') ? store.signup(b.email, b.password) : store.login(b.email, b.password);
       res.setHeader('Set-Cookie', cookie(sid, 30 * 86400));
@@ -240,6 +257,7 @@ http.createServer(async (req, res) => {
     } catch (e) { return json(res, 400, { error: e.message }); }
   }
   if (req.method === 'POST' && pathname === '/api/contact') {
+    if (limited('contact:' + ipOf(req), 5, 3600e3)) return json(res, 429, { error: 'Too many messages. Try again later.' });
     try { store.addMessage(await readBody(req)); return json(res, 200, { ok: true }); } catch (e) { return json(res, 400, { error: e.message }); }
   }
   if (req.method === 'POST' && pathname === '/api/opt-out') {

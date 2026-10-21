@@ -317,8 +317,8 @@ function social() {
       await stream('/api/social-search?username=' + encodeURIComponent(u), (x) => {
         rows.push(x); done++; if (x.status === 'found') found++;
         rows.sort((a, b) => (a.status === 'found' ? 0 : 1) - (b.status === 'found' ? 0 : 1) || a.platform.localeCompare(b.platform));
-        $('st').textContent = `Checked ${done}/${config.platforms}`; $('fd').textContent = `${found} found`;
-        $('rs').innerHTML = rows.map((x) => `<div class="row"><div><b>${esc(x.platform)}</b><br>${x.status === 'found' ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.url)}</a>` : `<span class="mono">${esc(x.url)}</span>`}</div><span class="pill ${x.status}">${x.status.replace('_', ' ')}</span></div>`).join('');
+        $('st').textContent = `Checked ${done}/${config.platforms}`; $('fd').textContent = `${found} found` + (rows.some((r) => r.status === 'blocked') ? ` · ${rows.filter((r) => r.status === 'blocked').length} blocked` : '');
+        $('rs').innerHTML = rows.map((x) => `<div class="row"><div><b>${esc(x.platform)}</b><br>${x.status === 'found' ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.url)}</a>` : `<span class="mono">${esc(x.url)}</span>`}</div><span class="pill ${x.status === 'blocked' ? 'error' : x.status}" ${x.status === 'blocked' ? 'title="This site blocked the automated check. Open the link to verify."' : ''}>${x.status.replace('_', ' ')}</span></div>`).join('');
       });
       out.querySelector('.stream-cursor')?.remove();
     } catch (err) { if (document.body.contains(out)) out.innerHTML = errBox(err.message); }
