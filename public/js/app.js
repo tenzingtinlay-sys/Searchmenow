@@ -7,6 +7,7 @@ let view; // current dashboard page container
 
 const LEGAL = 'Searchmenow is not a consumer reporting agency and our results are not consumer reports. They may not be used to decide eligibility for credit, insurance, employment, housing or tenant screening, or any other purpose covered by the Fair Credit Reporting Act.';
 const ANNOUNCEMENTS = [
+  ['Deep search', 'Follow linked accounts, websites and emails from a single clue, with confidence scores and logic filters.'],
   ['Phone, email & IP lookup', 'Validate phone numbers and emails and locate IP addresses from the new lookup tab.'],
   ['Free API', 'Create an API key and run any search from your own website or app.'],
   ['People search', 'Search a full name across GitHub, Wikipedia, ORCID, Mastodon and Bluesky.'],
@@ -38,7 +39,7 @@ function routeFor(v) {
   if (/\s/.test(v)) return `/dashboard/people-search?q=${encodeURIComponent(v)}`;
   return `/dashboard/social-search?q=${encodeURIComponent(v)}`;
 }
-const KIND_ROUTE = { social: 'social-search', people: 'people-search', breach: 'breach-search', phone: 'lookup?type=phone&', email: 'lookup?type=email&', ip: 'lookup?type=ip&' };
+const KIND_ROUTE = { deep: 'deep-search', social: 'social-search', people: 'people-search', breach: 'breach-search', phone: 'lookup?type=phone&', email: 'lookup?type=email&', ip: 'lookup?type=ip&' };
 const historyHref = (h) => { const r = KIND_ROUTE[h.kind]; return `/dashboard/${r}${r.includes('?') ? '' : '?'}q=${encodeURIComponent(h.query)}`; };
 
 // Runs a search request; handles auth and credit errors uniformly.
@@ -69,6 +70,7 @@ function autorun() {
 const publicRoutes = { '/': landing, '/login': () => auth('login'), '/signup': () => auth('signup'), '/pricing': pricing, '/contact': contact, '/opt-out': optOut, '/terms': terms, '/privacy': privacy };
 const dashRoutes = {
   '/dashboard': ['home', 'Home', home],
+  '/dashboard/deep-search': ['deep', 'deep-search', deep],
   '/dashboard/social-search': ['social', 'social-search', social],
   '/dashboard/people-search': ['people', 'people-search', people],
   '/dashboard/breach-search': ['breach', 'breach-search', breach],
@@ -125,12 +127,12 @@ function landing() {
     <p>Searchmenow queries ${config.platforms}+ platforms and open data sources live, ranks matching public profiles and shows known breach exposure for an email.</p>
     <form class="search" id="lf"><input id="lq" placeholder="username, name@example.com, Jane Smith, +14155550123" required aria-label="Search"><button class="btn btn-primary">${icon('search')} Search</button></form>
     <p class="mono">Free account · ${perDay(config.plans?.free?.daily)} · no card required</p>
-    <div class="kpis"><div><b>${config.platforms}</b><span>platforms</span></div><div><b>${config.peopleSources}</b><span>people sources</span></div><div><b>6</b><span>search types</span></div><div><b>Live</b><span>no stale cache</span></div></div>
+    <div class="kpis"><div><b>${config.platforms}</b><span>platforms</span></div><div><b>${config.peopleSources}</b><span>people sources</span></div><div><b>7</b><span>search types</span></div><div><b>Live</b><span>no stale cache</span></div></div>
   </section>
   <section class="site-section"><div class="wrap">
     <h2>Everything in one dashboard</h2><p class="sub">Each search runs in real time against the source, so results reflect what is public right now.</p>
     <div class="cards">
-      ${[['search', 'Social search', `Check a username on ${config.platforms} platforms. Results stream in as each site answers.`], ['users', 'People search', 'Find a full name on GitHub, Wikipedia, ORCID, Mastodon and Bluesky.'], ['database', 'Breach search', 'See which known data breaches include an email address.'], ['phone', 'Phone, email & IP', 'Validate numbers and mailboxes, and locate IP addresses.'], ['code', 'Free API', 'Run every search from your own website or app with an API key.'], ['shield', 'Opt-out', 'Anyone can remove their identifier from results.']]
+      ${[['graph', 'Deep search', 'Start from one clue. We follow linked accounts, websites and emails and score each match.'], ['search', 'Social search', `Check a username on ${config.platforms} platforms. Results stream in as each site answers.`], ['users', 'People search', 'Find a full name on GitHub, Wikipedia, ORCID, Mastodon and Bluesky.'], ['database', 'Breach search', 'See which known data breaches include an email address.'], ['phone', 'Phone, email & IP', 'Validate numbers and mailboxes, and locate IP addresses.'], ['code', 'Free API', 'Run every search from your own website or app with an API key.'], ['shield', 'Opt-out', 'Anyone can remove their identifier from results.']]
         .map(([i, t, d]) => `<div class="card"><div class="ic">${icon(i)} ${t}</div><span>${d}</span></div>`).join('')}
     </div></div></section>
   <section class="site-section"><div class="wrap" style="text-align:center">
@@ -167,7 +169,7 @@ function auth(mode) {
 }
 
 function planCards(current) {
-  const feats = { free: ['All 6 search types', 'Live results', 'Search history'], pro: ['Everything in Free', 'Priority sources', 'Email support'], team: ['Everything in Pro', 'Shared billing', 'Higher API limits'] };
+  const feats = { free: ['All 7 search types incl. Deep search', 'Live results', 'Search history'], pro: ['Everything in Free', 'Priority sources', 'Email support'], team: ['Everything in Pro', 'Shared billing', 'Higher API limits'] };
   return `<div class="cards">${Object.entries(config.plans).map(([id, p]) => `<div class="card ${current === id ? 'current' : ''}">
     <div class="ic">${p.name}${current === id ? ' <span class="pill found">current</span>' : ''}</div>
     <div class="price">$${p.price}<small>${p.price ? ' / month' : ''}</small></div>
@@ -241,6 +243,7 @@ function shell() {
       <div class="top">${brand()}</div>
       <nav aria-label="Dashboard">
         ${nav('/dashboard', 'home', 'home', 'Home')}
+        ${nav('/dashboard/deep-search', 'deep', 'graph', 'Deep search')}
         ${nav('/dashboard/social-search', 'social', 'search', 'Social search')}
         ${nav('/dashboard/people-search', 'people', 'users', 'People search')}
         ${nav('/dashboard/breach-search', 'breach', 'database', 'Breach search')}
@@ -295,7 +298,7 @@ function updateReadout() {
 
 // ---------- dashboard pages ----------
 function home() {
-  const types = [['/dashboard/social-search', 'search', 'Social search', `Username across ${config.platforms} platforms.`], ['/dashboard/people-search', 'users', 'People search', `Full name across ${config.peopleSources} open sources.`], ['/dashboard/breach-search', 'database', 'Breach search', `Known breaches for an email via ${config.breachSource}.`], ['/dashboard/lookup', 'phone', 'Phone, email & IP', `Validate and locate${config.apilayer ? ' via APILayer' : ''}.`]];
+  const types = [['/dashboard/deep-search', 'graph', 'Deep search', 'Follow linked accounts, websites and emails from one clue.'], ['/dashboard/social-search', 'search', 'Social search', `Username across ${config.platforms} platforms.`], ['/dashboard/people-search', 'users', 'People search', `Full name across ${config.peopleSources} open sources.`], ['/dashboard/breach-search', 'database', 'Breach search', `Known breaches for an email via ${config.breachSource}.`], ['/dashboard/lookup', 'phone', 'Phone, email & IP', `Validate and locate${config.apilayer ? ' via APILayer' : ''}.`]];
   view.innerHTML = `<h1>Dashboard</h1><p class="sub">Signed in as ${esc(me.email)} · ${esc(me.planName)} plan</p>
     <form class="search" id="hf"><input id="hq" placeholder="username, name@example.com, Jane Smith, +14155550123 or 8.8.8.8" required aria-label="Search"><button class="btn btn-primary">${icon('search')} Search</button></form>
     ${me.limit ? `<div class="section"><p class="lbl">Today</p><div class="card" style="max-width:360px"><div class="ic">${me.used} of ${me.limit} searches used</div><div class="progress"><div style="width:${Math.min(100, (me.used / me.limit) * 100)}%"></div></div>${me.plan === 'free' ? '<span><a href="/dashboard/billing">Upgrade</a> for more searches.</span>' : ''}</div></div>` : `<div class="section"><p class="lbl">Today</p><div class="card" style="max-width:360px"><div class="ic">${me.used} searches today</div><span>Unlimited searches on your plan.</span></div></div>`}
@@ -303,6 +306,72 @@ function home() {
     <div class="section"><p class="lbl">Recent searches</p>${history_.length ? `<div class="results">${history_.map((h) => `<a class="row" href="${historyHref(h)}" style="text-decoration:none"><div style="display:flex;gap:10px;align-items:center">${icon('history')}<b>${esc(h.query)}</b></div><span class="mono">${esc(h.kind)} · ${new Date(h.at).toLocaleString()}</span></a>`).join('')}</div>` : '<div class="notice">No searches yet. Try the search box above.</div>'}</div>`;
   $('hf').onsubmit = (e) => { e.preventDefault(); go(routeFor($('hq').value)); };
   $('hq').focus();
+}
+
+function deep() {
+  const qs = new URLSearchParams(location.search);
+  view.innerHTML = `<h1>Deep search</h1><p class="sub">Start from one username, email, full name or website. Searchmenow reads the public profiles it finds, follows every linked account, website and email, and scores how likely each one belongs to the same person. 1 search credit.</p>
+    <form id="f">
+      <div class="search" style="display:flex;gap:8px;margin-bottom:12px"><input id="q" placeholder="username, name@example.com, Jane Smith or example.com" required aria-label="Seed"><button class="btn btn-primary" id="b">${icon('graph')} Deep search</button></div>
+      <details id="opts" style="margin-bottom:24px" ${qs.get('name') || qs.get('location') || qs.get('keywords') ? 'open' : ''}><summary class="mono" style="cursor:pointer;padding:6px 0">Logic filters &amp; depth</summary>
+        <div class="cards" style="margin-top:12px">
+          <div class="field"><label for="dd">Depth (how many hops to follow)</label><select id="dd"><option value="1">1 · direct links only</option><option value="2" selected>2 · links of links</option><option value="3">3 · widest (slower)</option></select></div>
+          <div class="field"><label for="dn">Expected name</label><input id="dn" placeholder="e.g. Jane Smith" value="${esc(qs.get('name') || '')}"></div>
+          <div class="field"><label for="dl">Expected location</label><input id="dl" placeholder="e.g. Berlin or NY" value="${esc(qs.get('location') || '')}"></div>
+          <div class="field"><label for="dk">Keywords (comma separated)</label><input id="dk" placeholder="e.g. rust, photography" value="${esc(qs.get('keywords') || '')}"></div>
+        </div>
+        <p class="mono" style="line-height:1.6">Profiles that match your expected name or location score higher; profiles that contradict them score lower. Matching keywords add confidence.</p>
+      </details>
+    </form><div id="out"></div>`;
+  if (qs.get('depth')) $('dd').value = qs.get('depth');
+  const tier = (c) => c >= 70 ? ['Strong matches', 'found'] : c >= 40 ? ['Possible matches', 'error'] : ['Weak leads', ''];
+  const KIND_LABEL = { username: 'Username', email: 'Email', website: 'Website', account: 'Account', name: 'Name' };
+  const linkFor = (x) => x.kind === 'website' || x.kind === 'account' ? x.value : x.urls?.[0] || null;
+  $('f').onsubmit = async (e) => {
+    e.preventDefault();
+    const q = $('q').value.trim(), out = $('out');
+    const params = new URLSearchParams({ q, depth: $('dd').value, name: $('dn').value.trim(), location: $('dl').value.trim(), keywords: $('dk').value.trim() });
+    for (const [k, v] of [...params]) if (!v) params.delete(k);
+    history.replaceState(null, '', '?' + params);
+    $('b').disabled = true;
+    out.innerHTML = `<div class="stats"><span class="stream-cursor" id="cur"></span><span id="st">Starting…</span><span id="cnt"></span></div>
+      <div id="sum" class="cards" style="margin-bottom:24px"></div><div id="tiers" style="display:flex;flex-direction:column;gap:20px"></div>
+      <details style="margin-top:24px"><summary class="lbl" style="cursor:pointer">Profiles read (<span id="pc">0</span>)</summary><div class="results" id="profs" style="margin-top:8px"></div></details>`;
+    const ids = new Map(); let pcount = 0, timer;
+    const draw = () => {
+      const all = [...ids.values()].filter((x) => x.depth > 0).sort((a, b) => b.confidence - a.confidence);
+      $('cnt').textContent = `${all.length} leads`;
+      const groups = {};
+      for (const x of all) (groups[tier(x.confidence)[0]] ||= []).push(x);
+      $('tiers').innerHTML = ['Strong matches', 'Possible matches', 'Weak leads'].filter((t) => groups[t]).map((t) => `<div><p class="lbl">${t} · ${groups[t].length}</p><div class="results">${groups[t].map((x) => {
+        const href = linkFor(x);
+        return `<div class="row" style="align-items:flex-start"><div style="min-width:0;flex:1"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="pill">${KIND_LABEL[x.kind] || x.kind}</span>${x.platform ? `<span class="mono">${esc(x.platform)}</span>` : ''}${href ? `<a href="${esc(href)}" target="_blank" rel="noopener"><b>${esc(x.value)}</b></a>` : `<b>${esc(x.value)}</b>`}</div>
+          <div class="mono" style="margin-top:6px;line-height:1.6">${x.evidence.map((ev) => `${ev.proof ? '✓ ' : '↳ '}${esc(ev.why)} <span style="opacity:.6">via ${esc(ev.via)}</span>`).join('<br>')}</div></div>
+          <div style="width:120px;flex-shrink:0;text-align:right"><span class="pill ${tier(x.confidence)[1]}">${x.confidence}%</span><div class="progress"><div style="width:${x.confidence}%"></div></div></div></div>`;
+      }).join('')}</div></div>`).join('') || '<div class="notice">Following leads…</div>';
+    };
+    const schedule = () => { clearTimeout(timer); timer = setTimeout(draw, 120); };
+    try {
+      await stream('/api/deep-search?' + params, (ev) => {
+        if (ev.type === 'step') $('st').textContent = ev.text;
+        else if (ev.type === 'identity') { ids.set(ev.key, ev); schedule(); }
+        else if (ev.type === 'profile') {
+          $('pc').textContent = ++pcount;
+          $('profs').insertAdjacentHTML('beforeend', `<div class="row" style="align-items:flex-start"><div><b>${esc(ev.platform)}</b>${ev.name ? ` · ${esc(ev.name)}` : ''}${ev.location ? ` · <span class="mono">${esc(ev.location)}</span>` : ''}<br>${ev.url ? `<a href="${esc(ev.url)}" target="_blank" rel="noopener">${esc(ev.url)}</a><br>` : ''}${ev.bio ? `<span class="mono">${esc(String(ev.bio).slice(0, 200))}</span>` : ''}</div><span class="mono">${esc(ev.via)}</span></div>`);
+        } else if (ev.type === 'done') {
+          const s = ev.summary; draw();
+          $('cur')?.remove(); $('st').textContent = `Done · ${s.profiles} profiles read · depth ${s.depth}${s.timedOut ? ' · stopped at time limit' : ''}`;
+          const card = (t, v, d) => `<div class="card"><span>${t}</span><div class="ic" style="font-size:16px">${v}</div>${d ? `<span>${d}</span>` : ''}</div>`;
+          $('sum').innerHTML = card('Likely name', s.likelyNames[0] ? esc(s.likelyNames[0].value) : '—', s.likelyNames.slice(1).map((n) => esc(n.value)).join(', ') || (s.likelyNames[0] ? 'Most consistent across sources' : 'No name found'))
+            + card('Likely location', s.likelyLocations[0] ? esc(s.likelyLocations[0].value) : '—', s.likelyLocations.slice(1).map((n) => esc(n.value)).join(', '))
+            + card('Leads found', `${s.identities - 1}`, `${s.strongLinks} strong · ${s.verifiedProofs} verified proofs`)
+            + (s.breaches !== null ? card('Breach exposure', `${s.breaches}`, 'known breaches for the email') : '');
+        } else if (ev.type === 'error') out.insertAdjacentHTML('beforeend', errBox(ev.error));
+      });
+    } catch (err) { if (document.body.contains(out)) out.innerHTML = errBox(err.message); }
+    if ($('b')) $('b').disabled = false;
+  };
+  autorun();
 }
 
 function social() {
@@ -398,7 +467,7 @@ function lookup() {
 
 function api() {
   const base = location.origin, saved = localStorage.getItem('smn_key') || '';
-  const eps = [['social', 'username=torvalds', `Username across ${config.platforms} platforms`], ['people', 'name=Jane%20Smith', 'Name across public sources'], ['breach', 'email=you@example.com', 'Known breaches for an email'], ['phone', 'number=%2B14158586273', 'Phone validation, country, carrier'], ['email', 'email=you@example.com', 'Email deliverability check'], ['ip', 'ip=8.8.8.8', 'IP geolocation and ISP']];
+  const eps = [['deep', 'q=torvalds&depth=2', 'Deep search: linked accounts with confidence scores'], ['social', 'username=torvalds', `Username across ${config.platforms} platforms`], ['people', 'name=Jane%20Smith', 'Name across public sources'], ['breach', 'email=you@example.com', 'Known breaches for an email'], ['phone', 'number=%2B14158586273', 'Phone validation, country, carrier'], ['email', 'email=you@example.com', 'Email deliverability check'], ['ip', 'ip=8.8.8.8', 'IP geolocation and ISP']];
   view.innerHTML = `<h1>API</h1><p class="sub">Use Searchmenow from any website or app. ${config.apiDailyLimit} requests per key per day. CORS enabled.</p>
     <div class="section"><p class="lbl">1 · Create a key</p>
       <form class="search" id="kf" style="margin-bottom:12px"><input id="kn" placeholder="Key name, e.g. mywebsite.com" required><button class="btn btn-primary">Create key</button></form><div id="kout"></div></div>
@@ -422,7 +491,7 @@ curl -H "X-API-Key: YOUR_KEY" "${base}/api/v1/breach?email=you@example.com"</pre
     try { const d = await post('/api/keys', { name: $('kn').value }); localStorage.setItem('smn_key', d.key); showKey(d.key); toast('API key created'); }
     catch (err) { $('kout').innerHTML = errBox(err.message); }
   };
-  const params = { social: ['username', 'torvalds'], people: ['name', 'Jane Smith'], breach: ['email', 'you@example.com'], phone: ['number', '+14158586273'], email: ['email', 'you@example.com'], ip: ['ip', '8.8.8.8'] };
+  const params = { deep: ['q', 'torvalds'], social: ['username', 'torvalds'], people: ['name', 'Jane Smith'], breach: ['email', 'you@example.com'], phone: ['number', '+14158586273'], email: ['email', 'you@example.com'], ip: ['ip', '8.8.8.8'] };
   $('te').onchange = () => { $('tq').placeholder = params[$('te').value][1]; };
   $('tf').onsubmit = async (e) => {
     e.preventDefault();

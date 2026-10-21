@@ -6,6 +6,7 @@ const dns = require('dns').promises;
 const net = require('net');
 const platforms = require('./platforms');
 const store = require('./store');
+const { deepSearch } = require('./deep');
 
 // ---- Free public API keys (stored in data/api-keys.json) ----
 const KEY_FILE = path.join(__dirname, '..', 'data', 'api-keys.json');
@@ -93,6 +94,20 @@ async function socialSearch(req, res, q) {
   // Stream results as NDJSON so the UI can update live.
   res.writeHead(200, { 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-cache' });
   await Promise.all(platforms.map(async (p) => res.write(JSON.stringify(await checkPlatform(p, u)) + '\n')));
+  res.end();
+}
+
+// Deep search: pivots from one identifier to linked accounts, streamed as NDJSON.
+async function deepSearchHandler(req, res, q) {
+  const seed = (q.get('q') || '').trim();
+  if (seed.length < 2 || seed.length > 200) return json(res, 400, { error: 'Enter a username, email, name or website.' });
+  res.writeHead(200, { 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-cache' });
+  const send = (e) => res.write(JSON.stringify(e) + '\n');
+  await deepSearch(seed, send, {
+    depth: q.get('depth'), expectName: q.get('name') || '', expectLocation: q.get('location') || '', keywords: q.get('keywords') || '',
+    isOptedOut: store.isOptedOut,
+    checkUsername: async (u) => (await Promise.all(platforms.map((p) => checkPlatform(p, u)))).filter((r) => r.status === 'found').map((r) => ({ ...r, url: r.url.replace(/^https:\/\/(www\.)?github\.com/, 'https://github.com') })),
+  }).catch((e) => send({ type: 'error', error: e.message }));
   res.end();
 }
 
@@ -233,7 +248,7 @@ http.createServer(async (req, res) => {
     if (!k) return json(res, 404, { error: 'Unknown key.' });
     return json(res, 200, { name: k.name, created: k.created, usedToday: k.day === today() ? k.used : 0, total: k.total, dailyLimit: DAILY_LIMIT });
   }
-  const v1 = { '/api/v1/social': socialSearch, '/api/v1/people': peopleSearch, '/api/v1/breach': breachSearch, '/api/v1/phone': phoneLookup, '/api/v1/email': emailLookup, '/api/v1/ip': ipLookup }[pathname];
+  const v1 = { '/api/v1/social': socialSearch, '/api/v1/deep': deepSearchHandler, '/api/v1/people': peopleSearch, '/api/v1/breach': breachSearch, '/api/v1/phone': phoneLookup, '/api/v1/email': emailLookup, '/api/v1/ip': ipLookup }[pathname];
   if (v1) {
     const err = useKey(req, searchParams);
     if (err) return json(res, 401, { error: err });
@@ -285,7 +300,7 @@ http.createServer(async (req, res) => {
 
   // ---- Dashboard searches: require sign-in, cost one credit, respect opt-outs ----
   const searches = {
-    '/api/social-search': [socialSearch, 'social', 'username'], '/api/people-search': [peopleSearch, 'people', 'name'],
+    '/api/social-search': [socialSearch, 'social', 'username'], '/api/deep-search': [deepSearchHandler, 'deep', 'q'], '/api/people-search': [peopleSearch, 'people', 'name'],
     '/api/breach-search': [breachSearch, 'breach', 'email'], '/api/lookup/phone': [phoneLookup, 'phone', 'number'],
     '/api/lookup/email': [emailLookup, 'email', 'email'], '/api/lookup/ip': [ipLookup, 'ip', 'ip'],
   };
