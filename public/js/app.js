@@ -26,6 +26,7 @@ async function loadMe() {
 }
 function go(url, replace) { history[replace ? 'replaceState' : 'pushState'](null, '', url); render(); }
 const brand = () => `<a class="brand" href="${me ? '/dashboard' : '/'}" aria-label="Searchmenow home">${LOGO}<span>searchme<span class="dim">now</span></span></a>`;
+const perDay = (n) => n ? `${n} searches per day` : 'Unlimited searches';
 const errBox = (m) => `<div class="notice err">${esc(m)}${/limit reached/i.test(m) ? ' <a href="/dashboard/billing">Upgrade</a>' : ''}</div>`;
 
 // Classifies free text into the right search.
@@ -123,7 +124,7 @@ function landing() {
     <h1>Search a username, email, name or phone across public sources</h1>
     <p>Searchmenow queries ${config.platforms}+ platforms and open data sources live, ranks matching public profiles and shows known breach exposure for an email.</p>
     <form class="search" id="lf"><input id="lq" placeholder="username, name@example.com, Jane Smith, +14155550123" required aria-label="Search"><button class="btn btn-primary">${icon('search')} Search</button></form>
-    <p class="mono">Free account · ${config.plans?.free?.daily || 10} searches per day · no card required</p>
+    <p class="mono">Free account · ${perDay(config.plans?.free?.daily)} · no card required</p>
     <div class="kpis"><div><b>${config.platforms}</b><span>platforms</span></div><div><b>${config.peopleSources}</b><span>people sources</span></div><div><b>6</b><span>search types</span></div><div><b>Live</b><span>no stale cache</span></div></div>
   </section>
   <section class="site-section"><div class="wrap">
@@ -145,7 +146,7 @@ function auth(mode) {
   app.innerHTML = `<div class="auth"><div class="box">
     ${brand()}
     <h1>${signup ? 'Create your account' : 'Sign in'}</h1>
-    <p class="sub">${signup ? `Free plan includes ${config.plans?.free?.daily || 10} searches per day.` : 'Welcome back.'}</p>
+    <p class="sub">${signup ? `Free plan includes ${perDay(config.plans?.free?.daily).toLowerCase()}.` : 'Welcome back.'}</p>
     <form id="af">
       <div class="field"><label for="ae">Email</label><input id="ae" type="email" autocomplete="email" required></div>
       <div class="field"><label for="ap">Password</label><input id="ap" type="password" autocomplete="${signup ? 'new-password' : 'current-password'}" minlength="${signup ? 8 : 1}" required>${signup ? '<span class="mono">At least 8 characters</span>' : ''}</div>
@@ -170,7 +171,7 @@ function planCards(current) {
   return `<div class="cards">${Object.entries(config.plans).map(([id, p]) => `<div class="card ${current === id ? 'current' : ''}">
     <div class="ic">${p.name}${current === id ? ' <span class="pill found">current</span>' : ''}</div>
     <div class="price">$${p.price}<small>${p.price ? ' / month' : ''}</small></div>
-    <span>${p.daily} searches per day</span>
+    <span>${perDay(p.daily)}</span>
     <ul class="feat">${feats[id].map((f) => `<li>${icon('check', 14)}${f}</li>`).join('')}</ul>
     ${current === undefined ? `<a class="btn ${id === 'pro' ? 'btn-primary' : 'btn-secondary'}" href="/signup">${p.price ? 'Get ' + p.name : 'Start free'}</a>`
       : `<button class="btn ${current === id ? 'btn-secondary' : 'btn-primary'}" data-plan="${id}" ${current === id ? 'disabled' : ''}>${current === id ? 'Current plan' : id === 'free' ? 'Downgrade' : 'Upgrade'}</button>`}
@@ -220,7 +221,7 @@ function terms() {
 }
 function privacy() {
   page(`<div class="narrow"><h1>Privacy</h1>
-    <div class="section"><h2>What we store</h2><p class="sub">Your account email, a hashed password, your plan, daily search count and your last 50 searches. You can clear history or delete your account in Settings at any time.</p></div>
+    <div class="section"><h2>What we store</h2><p class="sub">Your account email, a hashed password, your plan, search count and your last 50 searches. You can clear history or delete your account in Settings at any time.</p></div>
     <div class="section"><h2>Searches</h2><p class="sub">Search terms are sent to the public sources needed to answer them. We do not sell data.</p></div>
     <div class="section"><h2>Cookies</h2><p class="sub">One essential cookie keeps you signed in.${config.analytics ? ' Cloudflare Web Analytics measures page performance without cookies.' : ''}</p></div></div>`);
 }
@@ -261,7 +262,7 @@ function shell() {
         <nav class="crumbs" id="crumbs" aria-label="Breadcrumb"></nav>
         <a class="menu-btn brand" href="/dashboard">${LOGO}</a>
         <div class="top-actions">
-          <div class="readout" id="readout" title="Searches left today"></div>
+          <div class="readout" id="readout" title="Searches today"></div>
           <div style="position:relative">
             <button class="icon-btn" id="bell" aria-label="Announcements" aria-expanded="false">${icon('bell')}<span class="dot" id="bell-dot"></span></button>
             <div class="popover" id="ann" hidden>${ANNOUNCEMENTS.map(([t, d]) => `<div class="item"><b>${t}</b>${d}</div>`).join('')}</div>
@@ -289,7 +290,7 @@ function shell() {
 }
 function updateReadout() {
   if (!me || !$('readout')) return;
-  $('readout').innerHTML = `${me.remaining}<span class="unit">/ ${me.limit} searches left</span>`;
+  $('readout').innerHTML = me.limit ? `${me.remaining}<span class="unit">/ ${me.limit} searches left</span>` : `${me.used}<span class="unit">searches today · unlimited</span>`;
 }
 
 // ---------- dashboard pages ----------
@@ -297,7 +298,7 @@ function home() {
   const types = [['/dashboard/social-search', 'search', 'Social search', `Username across ${config.platforms} platforms.`], ['/dashboard/people-search', 'users', 'People search', `Full name across ${config.peopleSources} open sources.`], ['/dashboard/breach-search', 'database', 'Breach search', `Known breaches for an email via ${config.breachSource}.`], ['/dashboard/lookup', 'phone', 'Phone, email & IP', `Validate and locate${config.apilayer ? ' via APILayer' : ''}.`]];
   view.innerHTML = `<h1>Dashboard</h1><p class="sub">Signed in as ${esc(me.email)} · ${esc(me.planName)} plan</p>
     <form class="search" id="hf"><input id="hq" placeholder="username, name@example.com, Jane Smith, +14155550123 or 8.8.8.8" required aria-label="Search"><button class="btn btn-primary">${icon('search')} Search</button></form>
-    <div class="section"><p class="lbl">Today</p><div class="card" style="max-width:360px"><div class="ic">${me.used} of ${me.limit} searches used</div><div class="progress"><div style="width:${Math.min(100, (me.used / me.limit) * 100)}%"></div></div>${me.plan === 'free' ? '<span><a href="/dashboard/billing">Upgrade</a> for more searches.</span>' : ''}</div></div>
+    ${me.limit ? `<div class="section"><p class="lbl">Today</p><div class="card" style="max-width:360px"><div class="ic">${me.used} of ${me.limit} searches used</div><div class="progress"><div style="width:${Math.min(100, (me.used / me.limit) * 100)}%"></div></div>${me.plan === 'free' ? '<span><a href="/dashboard/billing">Upgrade</a> for more searches.</span>' : ''}</div></div>` : `<div class="section"><p class="lbl">Today</p><div class="card" style="max-width:360px"><div class="ic">${me.used} searches today</div><span>Unlimited searches on your plan.</span></div></div>`}
     <div class="section"><p class="lbl">Search types</p><div class="cards">${types.map(([h, i, t, d]) => `<a class="card" href="${h}"><div class="ic">${icon(i)} ${t}</div><span>${d}</span></a>`).join('')}</div></div>
     <div class="section"><p class="lbl">Recent searches</p>${history_.length ? `<div class="results">${history_.map((h) => `<a class="row" href="${historyHref(h)}" style="text-decoration:none"><div style="display:flex;gap:10px;align-items:center">${icon('history')}<b>${esc(h.query)}</b></div><span class="mono">${esc(h.kind)} · ${new Date(h.at).toLocaleString()}</span></a>`).join('')}</div>` : '<div class="notice">No searches yet. Try the search box above.</div>'}</div>`;
   $('hf').onsubmit = (e) => { e.preventDefault(); go(routeFor($('hq').value)); };
@@ -435,7 +436,7 @@ curl -H "X-API-Key: YOUR_KEY" "${base}/api/v1/breach?email=you@example.com"</pre
 }
 
 function billing() {
-  view.innerHTML = `<h1>Billing</h1><p class="sub">You are on the <b style="color:var(--text)">${esc(me.planName)}</b> plan · ${me.limit} searches per day · ${me.used} used today.</p>
+  view.innerHTML = `<h1>Billing</h1><p class="sub">You are on the <b style="color:var(--text)">${esc(me.planName)}</b> plan · ${perDay(me.limit)} · ${me.used} used today.</p>
     ${planCards(me.plan)}<div id="bmsg" style="margin-top:16px"></div>
     ${config.billingDemo ? '<p class="mono" style="margin-top:12px">Demo billing is on: plan changes apply instantly without payment.</p>' : ''}`;
   view.querySelectorAll('button[data-plan]').forEach((b) => b.onclick = async () => {
@@ -449,7 +450,7 @@ function settings() {
   view.innerHTML = `<h1>Settings</h1><p class="sub">Manage your account and see which data sources are active.</p>
     <div class="section"><p class="lbl">Account</p><div class="results">
       ${row('Email', 'Used to sign in', me.email, true)}
-      ${row('Plan', `${me.limit} searches per day`, me.planName, true)}
+      ${row('Plan', perDay(me.limit), me.planName, true)}
       ${row('Member since', '', new Date(me.created).toLocaleDateString(), true)}
     </div></div>
     <div class="section"><p class="lbl">Change password</p>

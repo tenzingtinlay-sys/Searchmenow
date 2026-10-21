@@ -10,10 +10,12 @@ try { db = { ...db, ...JSON.parse(fs.readFileSync(FILE, 'utf8')) }; } catch {}
 let timer;
 const save = () => { clearTimeout(timer); timer = setTimeout(() => { fs.mkdirSync(DIR, { recursive: true }); fs.writeFileSync(FILE, JSON.stringify(db)); }, 200); };
 
+// Daily search limits. Unlimited by default; set FREE_DAILY_SEARCHES to a number to cap the Free plan.
+const freeLimit = Number(process.env.FREE_DAILY_SEARCHES) || null;
 const PLANS = {
-  free: { name: 'Free', price: 0, daily: Number(process.env.FREE_DAILY_SEARCHES || 10) },
-  pro: { name: 'Pro', price: 19.99, daily: 250 },
-  team: { name: 'Team', price: 49.99, daily: 2000 },
+  free: { name: 'Free', price: 0, daily: freeLimit },
+  pro: { name: 'Pro', price: 19.99, daily: freeLimit ? 250 : null },
+  team: { name: 'Team', price: 49.99, daily: freeLimit ? 2000 : null },
 };
 const today = () => new Date().toISOString().slice(0, 10);
 const hash = (pw, salt) => crypto.scryptSync(pw, salt, 64).toString('hex');
@@ -53,11 +55,11 @@ function userFromReq(req) {
   return u ? Object.assign(u, { _sid: sid }) : null;
 }
 
-const publicUser = (u) => ({ email: u.email, plan: u.plan, planName: PLANS[u.plan].name, used: u.used, limit: PLANS[u.plan].daily, remaining: Math.max(0, PLANS[u.plan].daily - u.used), created: u.created });
+const publicUser = (u) => ({ email: u.email, plan: u.plan, planName: PLANS[u.plan].name, used: u.used, limit: PLANS[u.plan].daily, remaining: PLANS[u.plan].daily ? Math.max(0, PLANS[u.plan].daily - u.used) : null, created: u.created });
 
 // Charges one credit and records history. Returns an error message or null.
 function charge(u, kind, query) {
-  if (u.used >= PLANS[u.plan].daily) return `Daily search limit reached (${PLANS[u.plan].daily} on ${PLANS[u.plan].name}). Upgrade in Billing or try again tomorrow.`;
+  if (PLANS[u.plan].daily && u.used >= PLANS[u.plan].daily) return `Daily search limit reached (${PLANS[u.plan].daily} on ${PLANS[u.plan].name}). Upgrade in Billing or try again tomorrow.`;
   u.used++;
   u.history.unshift({ kind, query, at: new Date().toISOString() });
   u.history = u.history.slice(0, 50);
