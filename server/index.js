@@ -1,7 +1,48 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const platforms = require('./platforms');
+
+// ---- Free public API keys (stored in data/api-keys.json) ----
+const KEY_FILE = path.join(__dirname, '..', 'data', 'api-keys.json');
+const DAILY_LIMIT = Number(process.env.API_DAILY_LIMIT || 100);
+let keys = {};
+try { keys = JSON.parse(fs.readFileSync(KEY_FILE, 'utf8')); } catch {}
+const saveKeys = () => { fs.mkdirSync(path.dirname(KEY_FILE), { recursive: true }); fs.writeFileSync(KEY_FILE, JSON.stringify(keys, null, 2)); };
+const today = () => new Date().toISOString().slice(0, 10);
+
+function createKey(name) {
+  const key = 'smn_' + crypto.randomBytes(20).toString('hex');
+  keys[key] = { name, created: new Date().toISOString(), day: today(), used: 0, total: 0 };
+  saveKeys();
+  return key;
+}
+
+// Returns an error message, or null if the request may proceed (and counts it).
+function useKey(req, q) {
+  const key = req.headers['x-api-key'] || q.get('api_key');
+  const k = key && keys[key];
+  if (!k) return 'Missing or invalid API key. Create one free at /dashboard/api.';
+  if (k.day !== today()) { k.day = today(); k.used = 0; }
+  if (k.used >= DAILY_LIMIT) return `Daily limit of ${DAILY_LIMIT} requests reached.`;
+  k.used++; k.total++; saveKeys();
+  return null;
+}
+
+const readBody = (req) => new Promise((ok) => { let b = ''; req.on('data', (c) => { b += c; if (b.length > 1e4) req.destroy(); }); req.on('end', () => { try { ok(JSON.parse(b || '{}')); } catch { ok({}); } }); });
+
+// Collect an NDJSON-streaming handler into a single JSON array for API clients.
+function collect(handler, req, q) {
+  return new Promise((done) => {
+    const items = []; let code = 200, single = null;
+    const fake = {
+      writeHead: (c) => { code = c; }, write: (l) => items.push(...String(l).split('\n').filter(Boolean).map(JSON.parse)),
+      end: (b) => { if (b) single = JSON.parse(b); done({ code, body: single || { results: items } }); },
+    };
+    handler(req, fake, q);
+  });
+}
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC = path.join(__dirname, '..', 'public');
@@ -98,10 +139,33 @@ function serveStatic(req, res, pathname) {
   fs.createReadStream(file).pipe(res);
 }
 
-http.createServer((req, res) => {
+http.createServer(async (req, res) => {
   const { pathname, searchParams } = new URL(req.url, 'http://x');
+  // CORS so the public API can be called from any website.
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-Key');
+  if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
+
+  if (pathname === '/api/keys' && req.method === 'POST') {
+    const { name } = await readBody(req);
+    const n = String(name || '').trim().slice(0, 60);
+    if (!n) return json(res, 400, { error: 'Give your key a name (e.g. your website).' });
+    return json(res, 201, { key: createKey(n), name: n, dailyLimit: DAILY_LIMIT });
+  }
+  if (pathname === '/api/keys/usage') {
+    const k = keys[searchParams.get('api_key') || req.headers['x-api-key']];
+    if (!k) return json(res, 404, { error: 'Unknown key.' });
+    return json(res, 200, { name: k.name, created: k.created, usedToday: k.day === today() ? k.used : 0, total: k.total, dailyLimit: DAILY_LIMIT });
+  }
+  const v1 = { '/api/v1/social': socialSearch, '/api/v1/people': peopleSearch, '/api/v1/breach': breachSearch }[pathname];
+  if (v1) {
+    const err = useKey(req, searchParams);
+    if (err) return json(res, 401, { error: err });
+    const { code, body } = await collect(v1, req, searchParams);
+    return json(res, code, body);
+  }
   if (pathname === '/api/health') return json(res, 200, { ok: true });
-  if (pathname === '/api/config') return json(res, 200, { platforms: platforms.length, breachEnabled: true, breachSource: process.env.HIBP_API_KEY ? 'Have I Been Pwned' : 'XposedOrNot (free)', peopleSources: peopleSources.length });
+  if (pathname === '/api/config') return json(res, 200, { platforms: platforms.length, apiDailyLimit: DAILY_LIMIT, breachEnabled: true, breachSource: process.env.HIBP_API_KEY ? 'Have I Been Pwned' : 'XposedOrNot (free)', peopleSources: peopleSources.length });
   if (pathname === '/api/social-search') return socialSearch(req, res, searchParams);
   if (pathname === '/api/people-search') return peopleSearch(req, res, searchParams);
   if (pathname === '/api/breach-search') return breachSearch(req, res, searchParams);

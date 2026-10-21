@@ -9,6 +9,7 @@ const routes = {
   '/dashboard/people-search': ['people', people],
   '/dashboard/breach-search': ['breach', breach],
   '/dashboard/billing': ['billing', billing],
+  '/dashboard/api': ['api', api],
   '/dashboard/settings': ['settings', settings],
 };
 
@@ -87,6 +88,55 @@ function people() {
     btn.disabled = false;
   };
   autorun();
+}
+
+function api() {
+  const base = location.origin;
+  const saved = localStorage.getItem('smn_key') || '';
+  view.innerHTML = `<h1>Free API</h1><p class="sub">Use Searchmenow from any website or app. Free: ${config.apiDailyLimit} requests per key per day. CORS is enabled.</p>
+  <p class="lbl" style="padding-left:0">1 · Create a key</p>
+  <form id="kf"><input id="kn" placeholder="Name, e.g. mywebsite.com" required><button>Create free key</button></form>
+  <div id="kout" style="margin-bottom:24px"></div>
+  <p class="lbl" style="padding-left:0">2 · Try it</p>
+  <form id="tf"><select id="te" style="background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:0 10px">
+    <option value="social|username">social</option><option value="people|name">people</option><option value="breach|email">breach</option></select>
+    <input id="tq" placeholder="torvalds" required><button id="tb">Send</button></form>
+  <pre id="tout" class="notice" style="max-height:320px;overflow:auto;white-space:pre-wrap;display:none"></pre>
+  <p class="lbl" style="padding-left:0;margin-top:24px">3 · Endpoints</p>
+  <div class="results">
+    ${[['social', 'username=torvalds', 'Username across ' + config.platforms + ' platforms'], ['people', 'name=Jane%20Smith', 'Name across public sources'], ['breach', 'email=you@example.com', 'Known breaches for an email']]
+      .map(([e, qs, d]) => `<div class="row"><div><b>GET /api/v1/${e}?${qs}</b><br><span class="mono">${d}</span></div></div>`).join('')}
+  </div>
+  <p class="lbl" style="padding-left:0;margin-top:24px">Example: call from any website</p>
+  <pre class="notice" style="white-space:pre-wrap">fetch('${base}/api/v1/social?username=torvalds', {
+  headers: { 'X-API-Key': 'YOUR_KEY' }
+}).then(r => r.json()).then(console.log);
+
+curl -H "X-API-Key: YOUR_KEY" "${base}/api/v1/breach?email=you@example.com"</pre>`;
+  const showKey = async (k) => {
+    const u = await (await fetch('/api/keys/usage?api_key=' + k)).json();
+    document.getElementById('kout').innerHTML = u.error ? '' : `<div class="notice"><b style="color:var(--text)">${esc(u.name)}</b> · ${u.usedToday}/${u.dailyLimit} used today<br><code style="color:var(--ok);word-break:break-all">${esc(k)}</code><br><span class="mono">Keep this key secret. It is saved in this browser.</span></div>`;
+  };
+  if (saved) showKey(saved);
+  document.getElementById('kf').onsubmit = async (e) => {
+    e.preventDefault();
+    const r = await fetch('/api/keys', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: document.getElementById('kn').value }) });
+    const d = await r.json();
+    if (!r.ok) return (document.getElementById('kout').innerHTML = `<div class="notice err">${esc(d.error)}</div>`);
+    localStorage.setItem('smn_key', d.key); showKey(d.key);
+  };
+  document.getElementById('te').onchange = (e) => { document.getElementById('tq').placeholder = { social: 'torvalds', people: 'Jane Smith', breach: 'you@example.com' }[e.target.value.split('|')[0]]; };
+  document.getElementById('tf').onsubmit = async (e) => {
+    e.preventDefault();
+    const k = localStorage.getItem('smn_key'), out = document.getElementById('tout'), btn = document.getElementById('tb');
+    out.style.display = 'block';
+    if (!k) return (out.textContent = 'Create a key first.');
+    const [ep, param] = document.getElementById('te').value.split('|');
+    btn.disabled = true; out.textContent = 'Loading…';
+    const r = await fetch(`/api/v1/${ep}?${param}=${encodeURIComponent(document.getElementById('tq').value)}`, { headers: { 'X-API-Key': k } });
+    out.textContent = `HTTP ${r.status}\n` + JSON.stringify(await r.json(), null, 2);
+    btn.disabled = false; showKey(k);
+  };
 }
 
 function billing() {
