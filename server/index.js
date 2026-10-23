@@ -9,7 +9,8 @@ const store = require('./store');
 const { deepSearch } = require('./deep');
 
 // ---- Free public API keys (stored in data/api-keys.json) ----
-const KEY_FILE = path.join(__dirname, '..', 'data', 'api-keys.json');
+const DATA_DIR = process.env.DATA_DIR || (process.env.VERCEL ? '/tmp/searchmenow' : path.join(__dirname, '..', 'data'));
+const KEY_FILE = path.join(DATA_DIR, 'api-keys.json');
 const DAILY_LIMIT = Number(process.env.API_DAILY_LIMIT || 100);
 let keys = {};
 try { keys = JSON.parse(fs.readFileSync(KEY_FILE, 'utf8')); } catch {}
@@ -59,6 +60,7 @@ const ipOf = (req) => req.socket.remoteAddress || 'unknown';
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC = path.join(__dirname, '..', 'public');
+const SHELL = path.join(__dirname, 'app.html');
 const UA = 'Mozilla/5.0 (X11; Linux x86_64) Searchmenow/1.0';
 const TYPES = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml' };
 
@@ -219,20 +221,35 @@ async function ipLookup(req, res, q) {
 function serveStatic(req, res, pathname) {
   let file = path.normalize(path.join(PUBLIC, pathname));
   if (!file.startsWith(PUBLIC)) return json(res, 403, { error: 'Forbidden' });
-  if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(PUBLIC, 'index.html'); // SPA fallback
-  res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream' });
-  if (file.endsWith('index.html') && CF_TOKEN) {
+  if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = SHELL; // SPA fallback: app shell
+  res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream', ...(file === SHELL ? { 'Cache-Control': 'no-cache' } : {}) });
+  if (file === SHELL && (CF_TOKEN || SITE_HOST)) {
+    let html = fs.readFileSync(file, 'utf8');
+    // Canonical address so search engines index only your own domain.
+    if (SITE_HOST) html = html.replace('</head>', `<link rel="canonical" href="https://${SITE_HOST}${pathname}">\n</head>`);
     // Cloudflare Web Analytics: official beacon, loaded only when a token is configured.
-    const tag = `<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='${JSON.stringify({ token: CF_TOKEN, spa: true })}'></script>`;
-    return res.end(fs.readFileSync(file, 'utf8').replace('</body>', tag + '\n</body>'));
+    if (CF_TOKEN) html = html.replace('</body>', `<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='${JSON.stringify({ token: CF_TOKEN, spa: true })}'></script>\n</body>`);
+    return res.end(html);
   }
   fs.createReadStream(file).pipe(res);
 }
 
-http.createServer(async (req, res) => {
+// Request handler: used by the standalone server below and by Vercel (api/index.js).
+// Your one public address, e.g. searchmenow.vercel.app or searchmenow.com.
+// On Vercel production it defaults to the project's production domain.
+const SITE_HOST = (process.env.SITE_HOST || (process.env.VERCEL_ENV === 'production' ? process.env.VERCEL_PROJECT_PRODUCTION_URL : '') || '').replace(/^https?:\/\//, '').replace(/\/.*$/, '').toLowerCase();
+
+async function handler(req, res) {
   const { pathname, searchParams } = new URL(req.url, 'http://x');
-  // CORS so the public API can be called from any website.
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // Host lock: any other address (deployment URLs, old domains) redirects to SITE_HOST.
+  const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').toLowerCase();
+  if (SITE_HOST && host && host !== SITE_HOST && !/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host)) {
+    res.writeHead(308, { Location: `https://${SITE_HOST}${req.url}` });
+    return res.end();
+  }
+  // CORS: only your own address may call the API from a browser (set API_CORS_ANY=true to allow every website).
+  res.setHeader('Access-Control-Allow-Origin', SITE_HOST && process.env.API_CORS_ANY !== 'true' ? `https://${SITE_HOST}` : '*');
+  res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-Key');
   if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
 
@@ -316,4 +333,7 @@ http.createServer(async (req, res) => {
   }
   if (pathname === '/api/config') return json(res, 200, { platforms: platforms.length, apiDailyLimit: DAILY_LIMIT, apilayer: !!AL_KEY, analytics: !!CF_TOKEN, breachEnabled: true, breachSource: process.env.HIBP_API_KEY ? 'Have I Been Pwned' : 'XposedOrNot (free)', peopleSources: peopleSources.length, plans: store.PLANS, billingDemo: process.env.BILLING_DEMO === 'true' });
   serveStatic(req, res, pathname);
-}).listen(PORT, '0.0.0.0', () => console.log(`Searchmenow listening on :${PORT}`));
+}
+
+module.exports = handler;
+if (require.main === module) http.createServer(handler).listen(PORT, '0.0.0.0', () => console.log(`Searchmenow listening on :${PORT}`));
