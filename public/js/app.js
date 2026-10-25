@@ -123,7 +123,7 @@ addEventListener('popstate', render);
 // ---------- public site ----------
 function siteNav() {
   return `<header class="site-nav">${brand()}<nav class="links">
-    <a href="/osint-framework">OSINT Framework</a><a href="/deep-search">Deep search</a><a href="/social-search">Username</a><a href="/people-search">People / keywords</a><a href="/breach-search">Email breach check</a><a href="/password-check">Password exposure</a><a href="/lookup">Phone / email / IP</a><a href="/contact">Contact</a>
+    <a href="/research">Global Research</a><a href="/osint-framework">OSINT Framework</a><a href="/deep-search">Deep search</a><a href="/social-search">Username</a><a href="/people-search">People / keywords</a><a href="/breach-search">Email breach check</a><a href="/password-check">Password exposure</a><a href="/lookup">Phone / email / IP</a><a href="/contact">Contact</a>
   </nav></header>`;
 }
 function siteFooter() {
