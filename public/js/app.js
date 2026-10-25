@@ -555,9 +555,9 @@ function passwordCheck() {
       if (!r.ok || d.error) throw new Error(d.error || 'Password check failed.');
       if (!d.pwned) {
         out.replaceChildren();
-        return;
+      } else {
+        out.innerHTML = `<div class="notice err"><b>Password exposure match found</b><p>Observed ${Number(d.count).toLocaleString()} times in the source corpus. Do not use it; if it is used anywhere, change it and any reused passwords.</p></div><p class="mono">Only a partial password hash was sent upstream. Source: <a href="https://haveibeenpwned.com/Passwords" target="_blank" rel="noopener noreferrer">Have I Been Pwned Pwned Passwords</a>.</p>`;
       }
-      out.innerHTML = `<div class="notice err"><b>Password exposure match found</b><p>Observed ${Number(d.count).toLocaleString()} times in the source corpus. Do not use it; if it is used anywhere, change it and any reused passwords.</p></div><p class="mono">Only a partial password hash was sent upstream. Source: <a href="https://haveibeenpwned.com/Passwords" target="_blank" rel="noopener noreferrer">Have I Been Pwned Pwned Passwords</a>.</p>`;
       $('pw').value = '';
     } catch (err) { out.innerHTML = errBox(err.message); }
     if ($('pwb')) $('pwb').disabled = false;
