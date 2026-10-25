@@ -412,6 +412,7 @@ async function handler(req, res) {
     return fn(req, res, searchParams);
   }
   if (pathname === '/api/config') return json(res, 200, { platforms: platforms.length, apiDailyLimit: DAILY_LIMIT, apilayer: !!AL_KEY, analytics: !!CF_TOKEN, breachEnabled: true, breachSource: process.env.HIBP_API_KEY ? 'Have I Been Pwned' : 'XposedOrNot (free)', peopleSources: peopleSources.length, plans: store.PLANS, billingDemo: process.env.BILLING_DEMO === 'true' });
+  if (pathname === '/research') return serveStatic(req, res, '/research.html');
   serveStatic(req, res, pathname);
 }
 
