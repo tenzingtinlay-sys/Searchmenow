@@ -525,9 +525,12 @@ function breach() {
       const response = await fetch(endpoint + '?email=' + encodeURIComponent(q));
       const d = await response.json();
       if (!response.ok || d.error) throw new Error(d.error || 'Breach search failed.');
+      if (!Array.isArray(d.breaches) || !d.breaches.length) {
+        out.replaceChildren();
+        return;
+      }
       const attribution = d.source === 'Have I Been Pwned' ? '<a href="https://haveibeenpwned.com/" target="_blank" rel="noopener noreferrer">Have I Been Pwned</a>' : esc(d.source || config.breachSource);
-      out.innerHTML = `<p class="mono">Source: ${attribution}. Data is supplied by the named breach-data provider; results may be incomplete.</p>` + (!d.breaches.length ? '<div class="notice ok">No known breaches found for this email.</div>'
-        : `<div class="stats"><span>${d.breaches.length} breaches found</span></div><div class="results">${d.breaches.map((b) => `<div class="row"><div><b>${esc(b.name)}</b> <span class="mono">${esc(b.domain || '')}</span><br><span class="mono">${esc((b.data || []).join(', '))}</span></div><span class="pill">${esc(b.date)}</span></div>`).join('')}</div>`);
+      out.innerHTML = `<p class="mono">Source: ${attribution}. Showing matching breach records only.</p><div class="stats"><span>${d.breaches.length} breaches found</span></div><div class="results">${d.breaches.map((b) => `<div class="row"><div><b>${esc(b.name)}</b> <span class="mono">${esc(b.domain || '')}</span><br><span class="mono">${esc((b.data || []).join(', '))}</span></div><span class="pill">${esc(b.date)}</span></div>`).join('')}</div>`;
     } catch (err) { if (document.body.contains(out)) out.innerHTML = errBox(err.message); }
     if ($('b')) $('b').disabled = false;
   };
@@ -550,10 +553,11 @@ function passwordCheck() {
       const r = await fetch('/api/public/password-check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok || d.error) throw new Error(d.error || 'Password check failed.');
-      out.innerHTML = d.pwned
-        ? `<div class="notice err"><b>This password appears in known exposure data.</b><p>Observed ${Number(d.count).toLocaleString()} times in the source corpus. Do not use it; if it is used anywhere, change it and any reused passwords.</p></div>`
-        : '<div class="notice ok"><b>No match found in the checked corpus.</b><p>This does not guarantee the password is strong or has never been exposed elsewhere.</p></div>';
-      out.innerHTML += '<p class="mono">Only a partial password hash was sent to the upstream service. Source: Have I Been Pwned.</p>';
+      if (!d.pwned) {
+        out.replaceChildren();
+        return;
+      }
+      out.innerHTML = `<div class="notice err"><b>Password exposure match found</b><p>Observed ${Number(d.count).toLocaleString()} times in the source corpus. Do not use it; if it is used anywhere, change it and any reused passwords.</p></div><p class="mono">Only a partial password hash was sent upstream. Source: <a href="https://haveibeenpwned.com/Passwords" target="_blank" rel="noopener noreferrer">Have I Been Pwned Pwned Passwords</a>.</p>`;
       $('pw').value = '';
     } catch (err) { out.innerHTML = errBox(err.message); }
     if ($('pwb')) $('pwb').disabled = false;
