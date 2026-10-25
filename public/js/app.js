@@ -167,7 +167,7 @@ function landing() {
     e.preventDefault();
     const q = $('lq').value.trim(), kind = $('lkind').value;
     let route = kind === 'auto'
-      ? (/^(\\d{1,3}\\.){3}\\d{1,3}$/.test(q) || (q.includes(':') && /^[0-9a-f:]+$/i.test(q)) ? 'ip' : /^\\+?[\\d\\s().-]{7,20}$/.test(q) ? 'phone' : q.includes('@') ? 'breach' : /\\s/.test(q) ? 'deep' : 'social')
+      ? (/^(\d{1,3}\.){3}\d{1,3}$/.test(q) || (q.includes(':') && /^[0-9a-f:]+$/i.test(q)) ? 'ip' : /^\+?[\d\s().-]{7,20}$/.test(q) ? 'phone' : q.includes('@') ? 'breach' : /\s/.test(q) ? 'deep' : 'social')
       : kind;
     const path = { deep:'/deep-search', social:'/social-search', people:'/people-search', breach:'/breach-search', phone:'/lookup?type=phone', email:'/lookup?type=email', ip:'/lookup?type=ip' }[route] || '/deep-search';
     const sep = path.includes('?') ? '&' : '?';
@@ -208,12 +208,12 @@ function planCards(current) {
     <div class="price">$${p.price}<small>${p.price ? ' / month' : ''}</small></div>
     <span>${perDay(p.daily)}</span>
     <ul class="feat">${feats[id].map((f) => `<li>${icon('check', 14)}${f}</li>`).join('')}</ul>
-    ${current === undefined ? `<a class="btn ${id === 'pro' ? 'btn-primary' : 'btn-secondary'}" href="/signup">${p.price ? 'Get ' + p.name : 'Start free'}</a>`
+    ${current === undefined ? `<a class="btn ${id === 'pro' ? 'btn-primary' : 'btn-secondary'}" href="/deep-search">${p.price ? 'Get ' + p.name : 'Start free'}</a>`
       : `<button class="btn ${current === id ? 'btn-secondary' : 'btn-primary'}" data-plan="${id}" ${current === id ? 'disabled' : ''}>${current === id ? 'Current plan' : id === 'free' ? 'Downgrade' : 'Upgrade'}</button>`}
   </div>`).join('')}</div>`;
 }
 function pricing() {
-  page(`<div class="wrap" style="padding:56px 24px"><h1>Pricing</h1><p class="sub">Start free. Upgrade when you need more searches.</p>${planCards()}</div>`);
+  page(`<div class="wrap" style="padding:56px 24px"><h1>Pricing</h1><p class="sub">Public searches are available without an account.</p>${planCards()}</div>`);
 }
 
 function contact() {
