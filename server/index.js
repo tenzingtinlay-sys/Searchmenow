@@ -337,7 +337,6 @@ async function handler(req, res) {
     const query = (searchParams.get(param) || '').trim();
     if (!query) return json(res, 400, { error: 'Enter something to search.' });
     if (query.length > 200) return json(res, 400, { error: 'Search query is too long.' });
-    if (limited(`public-search:${pathname}:${ipOf(req)}`, 5, 10 * 60e3)) return json(res, 429, { error: 'Public search limit reached. Please wait 10 minutes before trying again.' });
     if (store.isOptedOut(query)) return json(res, 451, { error: 'This identifier has been removed from search results at the owner’s request.' });
     return fn(req, res, searchParams);
   }
