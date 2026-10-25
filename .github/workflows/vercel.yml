@@ -38,38 +38,44 @@ jobs:
     if: github.event_name != 'pull_request'
     steps:
       - name: Check secret availability
+        id: google_secret
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
         run: |
-          if [ -z "$GOOGLE_API_KEY" ]; then
-            echo "GOOGLE_API_KEY secret is not configured; Google API smoke tests skipped."
-            exit 0
+          if [ -n "$GOOGLE_API_KEY" ]; then
+            echo "has_key=true" >> "$GITHUB_OUTPUT"
+            echo "GOOGLE_API_KEY secret is configured."
+          else
+            echo "has_key=false" >> "$GITHUB_OUTPUT"
+            echo "GOOGLE_API_KEY secret is missing; live Google API tests will be skipped."
           fi
-          echo "GOOGLE_API_KEY secret is configured."
       - name: Test YouTube Data API v3
+        if: steps.google_secret.outputs.has_key == 'true'
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
         run: |
           set +x
-          if [ -z "$GOOGLE_API_KEY" ]; then echo "Skipped: GOOGLE_API_KEY not configured."; exit 0; fi
           code=$(curl --silent --output /tmp/youtube-response.json --write-out '%{http_code}' --get 'https://www.googleapis.com/youtube/v3/search' --data-urlencode 'part=snippet' --data-urlencode 'type=video' --data-urlencode 'q=Searchmenow smoke test' --data-urlencode 'maxResults=1' --data-urlencode "key=$GOOGLE_API_KEY" || true)
           if [ "$code" != "200" ] || ! node -e "const x=require('/tmp/youtube-response.json');process.exit(Array.isArray(x.items)?0:1)" 2>/dev/null; then
             echo "YouTube API test failed (HTTP ${code:-unknown}). Check API enablement, key restrictions, quota and billing."
             exit 1
           fi
-          echo "YouTube Data API v3 test passed."
+          echo "YouTube Data API v3 authenticated request passed."
       - name: Test Places API (New)
+        if: steps.google_secret.outputs.has_key == 'true'
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
         run: |
           set +x
-          if [ -z "$GOOGLE_API_KEY" ]; then echo "Skipped: GOOGLE_API_KEY not configured."; exit 0; fi
           code=$(curl --silent --output /tmp/places-response.json --write-out '%{http_code}' --request POST 'https://places.googleapis.com/v1/places:searchText' --header "X-Goog-Api-Key: $GOOGLE_API_KEY" --header 'X-Goog-FieldMask: places.id,places.displayName,places.formattedAddress' --header 'Content-Type: application/json' --data '{"textQuery":"coffee in London"}' || true)
           if [ "$code" != "200" ] || ! node -e "const x=require('/tmp/places-response.json');process.exit(Array.isArray(x.places)?0:1)" 2>/dev/null; then
             echo "Places API test failed (HTTP ${code:-unknown}). Check Places API enablement, key restrictions, quota and billing."
             exit 1
           fi
-          echo "Places API (New) test passed."
+          echo "Places API (New) authenticated request passed."
+      - name: Report skipped API tests
+        if: steps.google_secret.outputs.has_key != 'true'
+        run: echo "Google API smoke tests skipped because GOOGLE_API_KEY is not configured as a repository secret."
 
   deploy:
     needs: check
