@@ -523,7 +523,8 @@ function breach() {
       const response = await fetch(endpoint + '?email=' + encodeURIComponent(q));
       const d = await response.json();
       if (!response.ok || d.error) throw new Error(d.error || 'Breach search failed.');
-      out.innerHTML = `<p class="mono">Source: ${esc(d.source || config.breachSource)}. Data is supplied by the named breach-data provider; results may be incomplete.</p>` + (!d.breaches.length ? '<div class="notice ok">No known breaches found for this email.</div>'
+      const attribution = d.source === 'Have I Been Pwned' ? '<a href="https://haveibeenpwned.com/" target="_blank" rel="noopener noreferrer">Have I Been Pwned</a>' : esc(d.source || config.breachSource);
+      out.innerHTML = `<p class="mono">Source: ${attribution}. Data is supplied by the named breach-data provider; results may be incomplete.</p>` + (!d.breaches.length ? '<div class="notice ok">No known breaches found for this email.</div>'
         : `<div class="stats"><span>${d.breaches.length} breaches found</span></div><div class="results">${d.breaches.map((b) => `<div class="row"><div><b>${esc(b.name)}</b> <span class="mono">${esc(b.domain || '')}</span><br><span class="mono">${esc((b.data || []).join(', '))}</span></div><span class="pill">${esc(b.date)}</span></div>`).join('')}</div>`);
     } catch (err) { if (document.body.contains(out)) out.innerHTML = errBox(err.message); }
     if ($('b')) $('b').disabled = false;
@@ -677,13 +678,13 @@ async function osintFramework() {
     <p class="sub" style="max-width:780px">Search public sources directly inside Searchmenow using the quick-search options below. You do not need to install external tools for the supported Searchmenow searches. The directory also lists optional third-party resources; those links open external sites and are not required for Searchmenow's own searches.</p>
     <div class="search" style="margin-bottom:12px"><input id="osint-filter" placeholder="Search tools, categories or capabilities…" aria-label="Filter OSINT tools"><a class="btn btn-primary" href="/deep-search">${icon('search')} Start a search</a></div>
     <div class="links" style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 18px">
-      <a class="btn btn-secondary" href="/social-search">Choose social platforms</a><a class="btn btn-secondary" href="/people-search">People</a><a class="btn btn-secondary" href="/breach-search">Breach exposure</a><a class="btn btn-secondary" href="/lookup?type=email">Email checks</a><a class="btn btn-secondary" href="/lookup?type=phone">Phone</a><a class="btn btn-secondary" href="/lookup?type=ip">IP address</a>
+      <a class="btn btn-secondary" href="/social-search">Choose social platforms</a><a class="btn btn-secondary" href="/people-search">People</a><a class="btn btn-secondary" href="/breach-search">Email breach exposure</a><a class="btn btn-secondary" href="/password-check">Password exposure</a><a class="btn btn-secondary" href="/lookup?type=email">Email checks</a><a class="btn btn-secondary" href="/lookup?type=phone">Phone</a><a class="btn btn-secondary" href="/lookup?type=ip">IP address</a>
     </div>
     <form id="osint-quick-form" class="search" style="margin-bottom:22px">
       <select id="osint-kind" aria-label="Search criteria" style="max-width:280px">
         <option value="deep">Keyword / deep search</option><option value="social">Username across selected platforms</option><option value="people">Person / public profile</option>
         <option value="company">Company / employer</option><option value="school">School</option><option value="university">University / college</option>
-        <option value="youtube-email">YouTube channel / publicly listed email</option><option value="email">Email validation</option><option value="breach">Email breach exposure</option>
+        <option value="youtube-email">YouTube channel / publicly listed email</option><option value="email">Email validation</option><option value="breach">Email breach exposure</option><option value="password">Password exposure check</option>
         <option value="phone">Phone number</option><option value="ip">IP address</option>
       </select>
       <input id="osint-query" placeholder="Enter a name, username, company, school, email, phone or IP" aria-label="Search value" required>
@@ -716,6 +717,7 @@ async function osintFramework() {
       people: '/people-search?q=' + encode,
       email: '/lookup?type=email&q=' + encode,
       breach: '/breach-search?q=' + encode,
+      password: '/password-check',
       phone: '/lookup?type=phone&q=' + encode,
       ip: '/lookup?type=ip&q=' + encode,
     };
