@@ -736,16 +736,37 @@ async function osintFramework() {
     host.innerHTML = visible.map((c) => `<details open style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px;min-width:0">
       <summary style="cursor:pointer;color:var(--text);font-weight:600;display:flex;justify-content:space-between;gap:12px"><span>${esc(c.name)}</span><span class="mono">${c.tools.length}</span></summary>
       <p class="mono" style="line-height:1.6;margin:10px 0 12px">${esc(c.description || '')}</p>
-      <div style="display:flex;flex-direction:column;gap:8px">${c.tools.map((t) => {
-        const internal = !!t.internal || String(t.url || '').startsWith('/');
-        const href = internal ? t.url : t.url;
-        return `<div style="padding:10px;border:1px solid var(--border);border-radius:8px;display:flex;gap:10px;align-items:flex-start;justify-content:space-between">
-          <div style="min-width:0"><a href="${esc(href)}" ${internal ? '' : 'target="_blank" rel="noopener noreferrer"'} style="color:var(--text);font-weight:600;text-decoration:none">${esc(t.name)}</a><div class="mono" style="line-height:1.55;margin-top:4px">${esc(t.purpose || '')}</div></div>
-          <a href="${esc(href)}" ${internal ? '' : 'target="_blank" rel="noopener noreferrer"'} aria-label="Open ${esc(t.name)}" style="color:var(--muted);flex-shrink:0">Open ↗</a>
-        </div>`;
-      }).join('')}</div>
+      <div style="display:flex;flex-direction:column;gap:8px">${c.tools.map((t) => `
+        <div style="padding:10px;border:1px solid var(--border);border-radius:8px;display:flex;gap:10px;align-items:flex-start;justify-content:space-between">
+          <div style="min-width:0"><b style="color:var(--text)">${esc(t.name)}</b><div class="mono" style="line-height:1.55;margin-top:4px">${esc(t.purpose || '')}</div></div>
+          <button type="button" class="btn btn-secondary btn-sm osint-run-tool" data-category="${esc(c.id)}" data-tool="${esc(t.name)}" aria-label="Search ${esc(t.name)} inside Searchmenow" style="flex-shrink:0">Search here ↗</button>
+        </div>`).join('')}</div>
     </details>`).join('') || '<div class="notice">No tools match that search. Try a broader keyword.</div>';
   };
+  host.addEventListener('click', (e) => {
+    const button = e.target.closest('.osint-run-tool');
+    if (!button) return;
+    const value = $('osint-query').value.trim();
+    if (!value) {
+      $('osint-query').focus();
+      $('osint-query').placeholder = 'Enter a search value first, then click Search here';
+      status.textContent = 'Enter a name, username, email, domain, phone or IP above to search inside Searchmenow.';
+      return;
+    }
+    const category = (button.dataset.category || '').toLowerCase();
+    const tool = button.dataset.tool || '';
+    const lower = (category + ' ' + tool).toLowerCase();
+    const q = encodeURIComponent(value);
+    let destination = '/deep-search?q=' + q + '&keywords=' + encodeURIComponent(tool);
+    if (/username|public profile|whatsmyname|namechk|github users/.test(lower)) destination = '/social-search?q=' + q;
+    else if (/email validation|emailrep/.test(lower)) destination = '/lookup?type=email&q=' + q;
+    else if (/breach|pwned/.test(lower)) destination = '/breach-search?q=' + q;
+    else if (/password/.test(lower)) destination = '/password-check';
+    else if (/phone/.test(lower)) destination = '/lookup?type=phone&q=' + q;
+    else if (/ip, network|ip lookup|arin rdap|ripestat|abuseipdb/.test(lower)) destination = '/lookup?type=ip&q=' + q;
+    else if (/people|professional|linkedin|orcid|wikidata/.test(lower)) destination = '/people-search?q=' + q;
+    go(destination);
+  });
   try {
     const r = await fetch('/api/public/osint-tools');
     const d = await r.json();
