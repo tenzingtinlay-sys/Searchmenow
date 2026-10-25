@@ -65,7 +65,7 @@ function autorun() {
 }
 
 // ---------- router ----------
-const publicRoutes = { '/': landing, '/deep-search': () => publicSearchPage(deep), '/breach-search': () => publicSearchPage(breach), '/social-search': () => publicSearchPage(social), '/people-search': () => publicSearchPage(people), '/lookup': () => publicSearchPage(lookup), '/login': landing, '/signup': landing, '/pricing': pricing, '/contact': contact, '/opt-out': optOut, '/terms': terms, '/privacy': privacy };
+const publicRoutes = { '/': landing, '/deep-search': () => publicSearchPage(deep), '/breach-search': () => publicSearchPage(breach), '/social-search': () => publicSearchPage(social), '/people-search': () => publicSearchPage(people), '/lookup': () => publicSearchPage(lookup), '/osint-framework': osintFramework, '/login': landing, '/signup': landing, '/pricing': pricing, '/contact': contact, '/opt-out': optOut, '/terms': terms, '/privacy': privacy };
 const dashRoutes = {
   '/dashboard': ['home', 'Home', home],
   '/dashboard/deep-search': ['deep', 'deep-search', deep],
@@ -123,7 +123,7 @@ addEventListener('popstate', render);
 // ---------- public site ----------
 function siteNav() {
   return `<header class="site-nav">${brand()}<nav class="links">
-    <a href="/deep-search">Deep search</a><a href="/social-search">Username</a><a href="/people-search">People / keywords</a><a href="/breach-search">Breach check</a><a href="/lookup">Phone / email / IP</a><a href="/pricing">Pricing</a><a href="/contact">Contact</a>
+    <a href="/osint-framework">OSINT Framework</a><a href="/deep-search">Deep search</a><a href="/social-search">Username</a><a href="/people-search">People / keywords</a><a href="/breach-search">Breach check</a><a href="/lookup">Phone / email / IP</a><a href="/pricing">Pricing</a><a href="/contact">Contact</a>
   </nav></header>`;
 }
 function siteFooter() {
@@ -584,6 +584,52 @@ function settings() {
     if (!confirm('Delete your account and all search history? This cannot be undone.')) return;
     await post('/api/account/delete'); me = null; shellMounted = false; go('/'); toast('Account deleted');
   };
+}
+
+
+// ---------- OSINT tool directory ----------
+async function osintFramework() {
+  page(`<section class="wrap" style="padding:34px 24px 48px;min-height:65vh">
+    <p class="lbl">Open-source intelligence · tool directory</p>
+    <h1 style="font-size:30px;margin-bottom:10px">OSINT Framework</h1>
+    <p class="sub" style="max-width:780px">Browse tools by research task, search the directory, or jump directly into Searchmenow's public search tools. This is a curated directory—not a promise that every external tool provides data or is free to use.</p>
+    <div class="search" style="margin-bottom:12px"><input id="osint-filter" placeholder="Search tools, categories or capabilities…" aria-label="Filter OSINT tools"><a class="btn btn-primary" href="/deep-search">${icon('search')} Start a search</a></div>
+    <div class="links" style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 18px">
+      <a class="btn btn-secondary" href="/social-search">Username</a><a class="btn btn-secondary" href="/people-search">People</a><a class="btn btn-secondary" href="/breach-search">Breach exposure</a><a class="btn btn-secondary" href="/lookup?type=email">Email</a><a class="btn btn-secondary" href="/lookup?type=phone">Phone</a><a class="btn btn-secondary" href="/lookup?type=ip">IP address</a>
+    </div>
+    <div id="osint-status" class="mono" style="margin:10px 0 14px">Loading directory…</div>
+    <div id="osint-categories" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:12px"></div>
+    <div class="notice" style="margin-top:22px">Use public and authorized sources only. Do not attempt to bypass login, private-profile, CAPTCHA or other access controls. Public content does not establish someone's current location. External services have their own terms, rate limits and privacy practices.</div>
+    <p class="mono" style="margin-top:12px">Inspired by <a href="https://osintframework.com/" target="_blank" rel="noopener noreferrer">OSINT Framework</a>. Original project source: <a href="https://github.com/lockfale/OSINT-Framework" target="_blank" rel="noopener noreferrer">lockfale/OSINT-Framework</a> (MIT). This Searchmenow page is an independently curated implementation, not an official copy.</p>
+  </section>`);
+  const filter = $('osint-filter'), host = $('osint-categories'), status = $('osint-status');
+  const renderTools = (categories, query = '') => {
+    const q = query.trim().toLowerCase();
+    const visible = categories.map((c) => ({...c, tools:(c.tools || []).filter((t) => !q || [c.name,c.description,t.name,t.purpose,t.url].join(' ').toLowerCase().includes(q))})).filter((c) => c.tools.length && (!q || c.name.toLowerCase().includes(q) || c.description.toLowerCase().includes(q) || c.tools.length));
+    status.textContent = visible.reduce((n,c) => n+c.tools.length,0) + ' tools across ' + visible.length + ' categories';
+    host.innerHTML = visible.map((c) => `<details open style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px;min-width:0">
+      <summary style="cursor:pointer;color:var(--text);font-weight:600;display:flex;justify-content:space-between;gap:12px"><span>${esc(c.name)}</span><span class="mono">${c.tools.length}</span></summary>
+      <p class="mono" style="line-height:1.6;margin:10px 0 12px">${esc(c.description || '')}</p>
+      <div style="display:flex;flex-direction:column;gap:8px">${c.tools.map((t) => {
+        const internal = !!t.internal || String(t.url || '').startsWith('/');
+        const href = internal ? t.url : t.url;
+        return `<div style="padding:10px;border:1px solid var(--border);border-radius:8px;display:flex;gap:10px;align-items:flex-start;justify-content:space-between">
+          <div style="min-width:0"><a href="${esc(href)}" ${internal ? '' : 'target="_blank" rel="noopener noreferrer"'} style="color:var(--text);font-weight:600;text-decoration:none">${esc(t.name)}</a><div class="mono" style="line-height:1.55;margin-top:4px">${esc(t.purpose || '')}</div></div>
+          <a href="${esc(href)}" ${internal ? '' : 'target="_blank" rel="noopener noreferrer"'} aria-label="Open ${esc(t.name)}" style="color:var(--muted);flex-shrink:0">Open ↗</a>
+        </div>`;
+      }).join('')}</div>
+    </details>`).join('') || '<div class="notice">No tools match that search. Try a broader keyword.</div>';
+  };
+  try {
+    const r = await fetch('/api/public/osint-tools');
+    const d = await r.json();
+    if (!r.ok || !Array.isArray(d.categories)) throw new Error(d.error || 'Directory unavailable.');
+    renderTools(d.categories);
+    filter.addEventListener('input', () => renderTools(d.categories, filter.value));
+  } catch (e) {
+    status.textContent = 'Could not load directory.';
+    host.innerHTML = errBox(e.message);
+  }
 }
 
 // ---------- boot ----------
