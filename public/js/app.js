@@ -741,7 +741,6 @@ async function osintFramework() {
           <div style="min-width:0"><b style="color:var(--text)">${esc(t.name)}</b><div class="mono" style="line-height:1.55;margin-top:4px">${esc(t.purpose || '')}</div></div>
           <button type="button" class="btn btn-secondary btn-sm osint-run-tool" data-category="${esc(c.id)}" data-tool="${esc(t.name)}" aria-label="Search ${esc(t.name)} inside Searchmenow" style="flex-shrink:0">Search here ↗</button>
         </div>`).join('')}</div>
-      }).join('')}</div>
     </details>`).join('') || '<div class="notice">No tools match that search. Try a broader keyword.</div>';
   };
   host.addEventListener('click', (e) => {
