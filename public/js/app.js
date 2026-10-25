@@ -683,12 +683,12 @@ async function osintFramework() {
     }
     const paths = {
       deep: '/deep-search?q=' + encode,
-      social: '/social-search?username=' + encode,
-      people: '/people-search?name=' + encode,
-      email: '/lookup?type=email&email=' + encode,
-      breach: '/breach-search?email=' + encode,
-      phone: '/lookup?type=phone&number=' + encode,
-      ip: '/lookup?type=ip&ip=' + encode,
+      social: '/social-search?q=' + encode,
+      people: '/people-search?q=' + encode,
+      email: '/lookup?type=email&q=' + encode,
+      breach: '/breach-search?q=' + encode,
+      phone: '/lookup?type=phone&q=' + encode,
+      ip: '/lookup?type=ip&q=' + encode,
     };
     go(paths[kind] || paths.deep);
   });
