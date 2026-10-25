@@ -31,3 +31,24 @@ Use only allow-listed documented APIs; never turn arbitrary user input into a fe
 - OWASP API Security: https://github.com/OWASP/API-Security — safe API handling and resource-consumption controls.
 
 Public sources only; no CAPTCHA, login, paywall or access-control bypass. Keep secrets server-side, escape output, respect source terms and rate limits, honor opt-outs, and never use results for eligibility decisions. Email breach, password, phone, IP and existing username checks remain on their existing dedicated endpoints. This first release does not integrate every listed directory tool as a dedicated live API.
+
+## Source directory audit — 25 October 2026
+
+The OSINT directory in `server/osint-tools.js` is a launcher directory, not a set of 57 backend integrations. Its external links include general search and archives (Google, Bing, Internet Archive), username tools (WhatsMyName, Namechk), email exposure/reputation (HIBP, EmailRep), people/research (LinkedIn, ORCID, Wikidata), phone metadata (ITU), domain/DNS/certificate services (ICANN Lookup, DNSdumpster, crt.sh, SecurityTrails), IP/network (RIPEstat, ARIN RDAP, AbuseIPDB), social search (Reddit, Bluesky, Mastodon), images/media (Google Lens, TinEye, ExifTool, InVID-WeVerify), geospatial (OpenStreetMap, Google Maps, Google Earth, Sentinel Hub), corporate registries (MCA India, OpenCorporates, GLEIF), code/package records (GitHub, GitLab, npm, PyPI), threat intel (VirusTotal, Shodan, URLhaus, Censys), documents/publications (Google Scholar, Crossref), and correlation/reporting tools (Maltego, Obsidian).
+
+### Integration review
+
+- **Direct public API integrations added in this change:** Crossref REST API, Open Library Search API, Internet Archive Advanced Search API, npm Registry Search API, and crt.sh certificate-transparency search.
+- **Existing direct integrations retained:** Wikipedia, Wikidata, GitHub, GitLab, ORCID, OpenAlex, Bluesky, Mastodon and Hacker News.
+- **Still directory links or dedicated workflows, not claimed as live research-engine connectors:** Google/Bing, LinkedIn, WhatsMyName, Namechk, HIBP breach search, EmailRep, phone lookup, DNS/WHOIS, RIPEstat, AbuseIPDB, Reddit, Google Lens/TinEye, map/satellite sources, MCA/OpenCorporates/GLEIF, VirusTotal/Shodan/URLhaus/Censys, Google Scholar, and Maltego. These require provider-specific APIs, local tools, credentials, or terms review; a homepage link is not a live data integration.
+- **Data quality controls:** every collector has a timeout; failures are isolated and surfaced as unavailable; results retain their source URL; outputs are normalized and deduplicated; relevance is not represented as identity certainty. crt.sh requests are restricted to valid domain-shaped inputs and use a fixed upstream host. No arbitrary URL fetching, authentication bypass, CAPTCHA bypass, or port scanning is added.
+- **Operational limits:** public API access is rate-limited by upstream providers and can be unavailable. The UI must show actual responding-source status. A zero-result response means no match was returned by queried sources, not proof that no record exists.
+- **Privacy and legal scope:** use only public data for legitimate research, honor opt-outs and provider terms, avoid sensitive government identifiers, and do not use the output as an eligibility decision. No provider's proprietary frontend or backend implementation is copied.
+
+### Public API references reviewed
+
+- Crossref REST API: https://www.crossref.org/documentation/retrieve-metadata/rest-api/
+- Open Library Search API and usage guidelines: https://openlibrary.org/developers/api and https://openlibrary.org/dev/docs/api/search
+- Internet Archive item search API: https://doc-tools.readthedocs.io/en/ia-test-gsod/item-search-apis.html
+- npm Registry API: https://api-docs.npmjs.com/
+- crt.sh certificate transparency search: https://crt.sh/

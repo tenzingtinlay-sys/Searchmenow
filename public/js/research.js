@@ -1,7 +1,7 @@
 (() => {
 'use strict';
 const $=id=>document.getElementById(id);
-const sources=[['wikipedia','Wikipedia'],['wikidata','Wikidata'],['github','GitHub'],['gitlab','GitLab'],['orcid','ORCID'],['openalex','OpenAlex'],['bluesky','Bluesky'],['mastodon','Mastodon'],['hackernews','Hacker News']];
+const sources=[['wikipedia','Wikipedia'],['wikidata','Wikidata'],['github','GitHub'],['gitlab','GitLab'],['orcid','ORCID'],['openalex','OpenAlex'],['bluesky','Bluesky'],['mastodon','Mastodon'],['hackernews','Hacker News'],['crossref','Crossref'],['openlibrary','Open Library'],['internetarchive','Internet Archive'],['npm','npm Registry'],['crtsh','Certificate Transparency']];
 let last=null;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 $('source-options').innerHTML=sources.map(([id,n])=>'<label><input type="checkbox" value="'+id+'" checked> '+n+'</label>').join('');

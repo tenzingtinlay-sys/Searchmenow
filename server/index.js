@@ -8,7 +8,7 @@ const platforms = require('./platforms');
 const store = require('./store');
 const { deepSearch } = require('./deep');
 const osintTools = require('./osint-tools');
-const { runResearch } = require('./research-engine');
+const { runResearch, SOURCES: RESEARCH_SOURCES } = require('./research-engine');
 
 // ---- Free public API keys (stored in data/api-keys.json) ----
 const DATA_DIR = process.env.DATA_DIR || (process.env.VERCEL ? '/tmp/searchmenow' : path.join(__dirname, '..', 'data'));
@@ -326,7 +326,7 @@ async function handler(req, res) {
     if (limited('research:' + ipOf(req), 8, 60 * 1000)) return json(res, 429, { error: 'Too many research searches. Wait a minute and try again.' });
     if (store.isOptedOut(query)) return json(res, 451, { error: 'This identifier has been removed from search results at the owner’s request.' });
     const requested = (searchParams.get('sources') || '').split(',').map(x => x.trim()).filter(Boolean);
-    const allowed = new Set(['wikipedia','wikidata','github','gitlab','orcid','openalex','bluesky','mastodon','hackernews']);
+    const allowed = new Set(RESEARCH_SOURCES.map(source => source.id));
     if (requested.some(x => !allowed.has(x))) return json(res, 400, { error: 'Unsupported source selected.' });
     try {
       const data = await runResearch(query, { type: searchParams.get('type') || 'auto', context: searchParams.get('context') || '', sources: requested.length ? requested : undefined });
