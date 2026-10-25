@@ -65,7 +65,7 @@ function autorun() {
 }
 
 // ---------- router ----------
-const publicRoutes = { '/': landing, '/deep-search': () => publicSearchPage(deep), '/breach-search': () => publicSearchPage(breach), '/social-search': () => publicSearchPage(social), '/people-search': () => publicSearchPage(people), '/lookup': () => publicSearchPage(lookup), '/osint-framework': osintFramework, '/login': landing, '/signup': landing, '/pricing': () => go('/', true), '/contact': contact, '/opt-out': optOut, '/terms': terms, '/privacy': privacy };
+const publicRoutes = { '/': landing, '/deep-search': () => publicSearchPage(deep), '/breach-search': () => publicSearchPage(breach), '/password-check': () => publicSearchPage(passwordCheck), '/social-search': () => publicSearchPage(social), '/people-search': () => publicSearchPage(people), '/lookup': () => publicSearchPage(lookup), '/osint-framework': osintFramework, '/login': landing, '/signup': landing, '/pricing': () => go('/', true), '/contact': contact, '/opt-out': optOut, '/terms': terms, '/privacy': privacy };
 const dashRoutes = {
   '/dashboard': ['home', 'Home', home],
   '/dashboard/deep-search': ['deep', 'deep-search', deep],
@@ -81,7 +81,7 @@ const dashRoutes = {
 function render() {
   const p = location.pathname.replace(/(.)\/$/, '$1');
   window.scrollTo(0, 0);
-  const publicSearchPages = { '/deep-search': deep, '/breach-search': breach, '/social-search': social, '/people-search': people, '/lookup': lookup };
+  const publicSearchPages = { '/deep-search': deep, '/breach-search': breach, '/password-check': passwordCheck, '/social-search': social, '/people-search': people, '/lookup': lookup };
   if (publicSearchPages[p]) {
     shellMounted = false;
     page('<div class="wrap" style="padding:40px 24px;min-height:60vh"><div id="public-search-view"></div></div>');
@@ -123,7 +123,7 @@ addEventListener('popstate', render);
 // ---------- public site ----------
 function siteNav() {
   return `<header class="site-nav">${brand()}<nav class="links">
-    <a href="/osint-framework">OSINT Framework</a><a href="/deep-search">Deep search</a><a href="/social-search">Username</a><a href="/people-search">People / keywords</a><a href="/breach-search">Breach check</a><a href="/lookup">Phone / email / IP</a><a href="/contact">Contact</a>
+    <a href="/osint-framework">OSINT Framework</a><a href="/deep-search">Deep search</a><a href="/social-search">Username</a><a href="/people-search">People / keywords</a><a href="/breach-search">Email breach check</a><a href="/password-check">Password exposure</a><a href="/lookup">Phone / email / IP</a><a href="/contact">Contact</a>
   </nav></header>`;
 }
 function siteFooter() {
@@ -143,7 +143,7 @@ function landing() {
         <option value="auto">Auto-detect search type</option><option value="deep">Keyword / website / public-source deep search</option>
         <option value="social">Username / social profiles</option><option value="people">Person name / public profiles</option>
         <option value="company">Company name</option><option value="education">Education institution</option><option value="school">School name</option><option value="university">University name</option><option value="youtube-email">YouTube channel / publicly listed email</option>
-        <option value="breach">Email breach exposure</option><option value="phone">Phone / mobile number</option>
+        <option value="breach">Email breach exposure</option><option value="password">Password exposure check (private range lookup)</option><option value="phone">Phone / mobile number</option>
         <option value="email">Email validation</option><option value="ip">IP address / network</option>
       </select>
       <input id="lq" placeholder="username, person, company, school, university, email or keyword" required aria-label="Search query">
@@ -157,13 +157,14 @@ function landing() {
   <section class="site-section"><div class="wrap">
     <h2>Search tools</h2><p class="sub">Choose a search type above or open a tool directly. Searches use public sources and available validation services.</p>
     <div class="cards">
-      ${[['graph', 'Deep search', 'Start from one clue. We follow linked accounts, websites and emails and score each match.'], ['search', 'Social search', `Check a username on ${config.platforms} platforms. Results stream in as each site answers.`], ['users', 'People search', 'Find a full name on GitHub, Wikipedia, ORCID, Mastodon and Bluesky.'], ['database', 'Breach search', 'See which known data breaches include an email address.'], ['phone', 'Phone, email & IP', 'Validate numbers and mailboxes, and locate IP addresses.'], ['code', 'Free API', 'Run every search from your own website or app with an API key.'], ['shield', 'Opt-out', 'Anyone can remove their identifier from results.']]
+      ${[['graph', 'Deep search', 'Start from one clue. We follow linked accounts, websites and emails and score each match.'], ['search', 'Social search', `Check a username on ${config.platforms} platforms. Results stream in as each site answers.`], ['users', 'People search', 'Find a full name on GitHub, Wikipedia, ORCID, Mastodon and Bluesky.'], ['database', 'Email breach search', 'See which known data breaches include an email address.'], ['shield', 'Password exposure', 'Check a password against known exposure counts without sending the full password to the upstream service.'], ['phone', 'Phone, email & IP', 'Validate numbers and mailboxes, and locate IP addresses.'], ['code', 'Free API', 'Run every search from your own website or app with an API key.'], ['shield', 'Opt-out', 'Anyone can remove their identifier from results.']]
         .map(([i, t, d]) => `<div class="card"><div class="ic">${icon(i)} ${t}</div><span>${d}</span></div>`).join('')}
     </div></div></section>
   <section class="site-section"><div class="wrap" style="text-align:center">
     <h2>Search without an account</h2><p class="sub">Choose a search tool and get started immediately.</p>
     <a class="btn btn-primary" href="/deep-search">${icon('search')} Start deep search ${icon('arrow')}</a>
   </div></section>`);
+  $('lkind').onchange = () => { $('lq').type = $('lkind').value === 'password' ? 'password' : 'text'; $('lq').placeholder = $('lkind').value === 'password' ? 'Enter password to check (not placed in URL)' : 'username, person, company, school, university, email or keyword'; };
   $('lf').onsubmit = (e) => {
     e.preventDefault();
     const q = $('lq').value.trim(), kind = $('lkind').value;
@@ -181,7 +182,8 @@ function landing() {
       const p = new URLSearchParams({ q, name: organizationModes[route].name, keywords: organizationModes[route].keywords });
       return go('/deep-search?' + p.toString());
     }
-    const path = { deep:'/deep-search', social:'/social-search', people:'/people-search', breach:'/breach-search', phone:'/lookup?type=phone', email:'/lookup?type=email', ip:'/lookup?type=ip' }[route] || '/deep-search';
+    if (route === 'password') return go('/password-check'); // Never put passwords in URLs, query strings or browser history.
+    const path = { deep:'/deep-search', social:'/social-search', people:'/people-search', breach:'/breach-search', password:'/password-check', phone:'/lookup?type=phone', email:'/lookup?type=email', ip:'/lookup?type=ip' }[route] || '/deep-search';
     const sep = path.includes('?') ? '&' : '?';
     go(path + sep + 'q=' + encodeURIComponent(q));
   };
@@ -516,19 +518,52 @@ function breach() {
   $('f').onsubmit = async (e) => {
     e.preventDefault();
     const out = $('out'), q = $('q').value.trim(); $('b').disabled = true;
-    history.replaceState(null, '', '?q=' + encodeURIComponent(q));
-    out.innerHTML = '<div class="stats"><span class="stream-cursor"></span><span>Searching breach records…</span></div>';
+    history.replaceState(null, '', location.pathname);
+    out.replaceChildren();
     try {
       const endpoint = location.pathname === '/breach-search' ? '/api/public/breach-search' : '/api/breach-search';
       const response = await fetch(endpoint + '?email=' + encodeURIComponent(q));
       const d = await response.json();
       if (!response.ok || d.error) throw new Error(d.error || 'Breach search failed.');
-      out.innerHTML = !d.breaches.length ? '<div class="notice ok">No known breaches found for this email.</div>'
-        : `<div class="stats"><span>${d.breaches.length} breaches found</span></div><div class="results">${d.breaches.map((b) => `<div class="row"><div><b>${esc(b.name)}</b> <span class="mono">${esc(b.domain || '')}</span><br><span class="mono">${esc(b.data.join(', '))}</span></div><span class="pill">${esc(b.date)}</span></div>`).join('')}</div>`;
+      if (!Array.isArray(d.breaches) || !d.breaches.length) {
+        out.replaceChildren();
+        return;
+      }
+      const attribution = d.source === 'Have I Been Pwned' ? '<a href="https://haveibeenpwned.com/" target="_blank" rel="noopener noreferrer">Have I Been Pwned</a>' : esc(d.source || config.breachSource);
+      out.innerHTML = `<p class="mono">Source: ${attribution}. Showing matching breach records only.</p><div class="stats"><span>${d.breaches.length} breaches found</span></div><div class="results">${d.breaches.map((b) => `<div class="row"><div><b>${esc(b.name)}</b> <span class="mono">${esc(b.domain || '')}</span><br><span class="mono">${esc((b.data || []).join(', '))}</span></div><span class="pill">${esc(b.date)}</span></div>`).join('')}</div>`;
     } catch (err) { if (document.body.contains(out)) out.innerHTML = errBox(err.message); }
     if ($('b')) $('b').disabled = false;
   };
   autorun();
+}
+
+function passwordCheck() {
+  view.innerHTML = `<h1>Password exposure check</h1>
+    <p class="sub">Check whether a password appears in known exposure records using Have I Been Pwned's free Pwned Passwords range API. Your browser sends the password to Searchmenow over HTTPS; Searchmenow hashes it and sends only the first five characters of the SHA-1 hash upstream. The full password is not sent to Have I Been Pwned and is not stored by this feature.</p>
+    <form class="search" id="pf"><input id="pw" type="password" autocomplete="new-password" placeholder="Enter a password to check" required maxlength="1024" aria-label="Password to check"><button class="btn btn-primary" id="pwb">${icon('shield')} Check exposure</button></form>
+    <p class="mono">Do not enter a password you currently use for a sensitive account. A positive result means it has appeared in exposure data; it does not prove your account was accessed. Never reuse an exposed password.</p>
+    <div id="pwout"></div>
+    <p class="mono">Data source: <a href="https://haveibeenpwned.com/Passwords" target="_blank" rel="noopener noreferrer">Have I Been Pwned — Pwned Passwords</a>.</p>`;
+  $('pf').onsubmit = async (e) => {
+    e.preventDefault();
+    const password = $('pw').value, out = $('pwout'), button = $('pwb');
+    button.disabled = true;
+    out.innerHTML = '<div class="stats"><span class="stream-cursor"></span><span>Checking exposure privately…</span></div>';
+    try {
+      const r = await fetch('/api/public/password-check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || d.error) throw new Error(d.error || 'Password check failed.');
+      if (!d.pwned) {
+        out.replaceChildren();
+      } else {
+        out.innerHTML = `<div class="notice err"><b>Password exposure match found</b><p>Observed ${Number(d.count).toLocaleString()} times in the source corpus. Do not use it; if it is used anywhere, change it and any reused passwords.</p></div><p class="mono">Only a partial password hash was sent upstream. Source: <a href="https://haveibeenpwned.com/Passwords" target="_blank" rel="noopener noreferrer">Have I Been Pwned Pwned Passwords</a>.</p>`;
+      }
+      $('pw').value = '';
+    } catch (err) { out.innerHTML = errBox(err.message); }
+    if ($('pwb')) $('pwb').disabled = false;
+  };
+  const existing = new URLSearchParams(location.search).get('check');
+  if (existing === '1') $('pw').focus();
 }
 
 function lookup() {
@@ -559,7 +594,7 @@ function lookup() {
 
 function api() {
   const base = location.origin, saved = localStorage.getItem('smn_key') || '';
-  const eps = [['deep', 'q=torvalds&depth=2', 'Deep search: linked accounts with confidence scores'], ['social', 'username=torvalds', `Username across ${config.platforms} platforms`], ['people', 'name=Jane%20Smith', 'Name across public sources'], ['breach', 'email=you@example.com', 'Known breaches for an email'], ['phone', 'number=%2B14158586273', 'Phone validation, country, carrier'], ['email', 'email=you@example.com', 'Email deliverability check'], ['ip', 'ip=8.8.8.8', 'IP geolocation and ISP']];
+  const eps = [['deep', 'q=torvalds&depth=2', 'Deep search: linked accounts with confidence scores'], ['password', 'password=not-for-production', 'Password exposure check (use the dedicated POST form for privacy)'], ['social', 'username=torvalds', `Username across ${config.platforms} platforms`], ['people', 'name=Jane%20Smith', 'Name across public sources'], ['breach', 'email=you@example.com', 'Known breaches for an email'], ['phone', 'number=%2B14158586273', 'Phone validation, country, carrier'], ['email', 'email=you@example.com', 'Email deliverability check'], ['ip', 'ip=8.8.8.8', 'IP geolocation and ISP']];
   view.innerHTML = `<h1>API</h1><p class="sub">Use Searchmenow from any website or app. ${config.apiDailyLimit} requests per key per day. CORS enabled.</p>
     <div class="section"><p class="lbl">1 · Create a key</p>
       <form class="search" id="kf" style="margin-bottom:12px"><input id="kn" placeholder="Key name, e.g. mywebsite.com" required><button class="btn btn-primary">Create key</button></form><div id="kout"></div></div>
@@ -583,13 +618,14 @@ curl -H "X-API-Key: YOUR_KEY" "${base}/api/v1/breach?email=you@example.com"</pre
     try { const d = await post('/api/keys', { name: $('kn').value }); localStorage.setItem('smn_key', d.key); showKey(d.key); toast('API key created'); }
     catch (err) { $('kout').innerHTML = errBox(err.message); }
   };
-  const params = { deep: ['q', 'torvalds'], social: ['username', 'torvalds'], people: ['name', 'Jane Smith'], breach: ['email', 'you@example.com'], phone: ['number', '+14158586273'], email: ['email', 'you@example.com'], ip: ['ip', '8.8.8.8'] };
+  const params = { deep: ['q', 'torvalds'], password: ['password', 'use dedicated form'], social: ['username', 'torvalds'], people: ['name', 'Jane Smith'], breach: ['email', 'you@example.com'], phone: ['number', '+14158586273'], email: ['email', 'you@example.com'], ip: ['ip', '8.8.8.8'] };
   $('te').onchange = () => { $('tq').placeholder = params[$('te').value][1]; };
   $('tf').onsubmit = async (e) => {
     e.preventDefault();
     const k = localStorage.getItem('smn_key'), out = $('tout'); out.hidden = false;
     if (!k) return (out.textContent = 'Create a key first.');
     const ep = $('te').value; $('tb').disabled = true; out.textContent = 'Loading…';
+    if (ep === 'password') { out.textContent = 'For privacy, password checks use POST /api/public/password-check and never place the password in a URL. Use the Password exposure page instead.'; $('tb').disabled = false; return; }
     const r = await fetch(`/api/v1/${ep}?${params[ep][0]}=${encodeURIComponent($('tq').value)}`, { headers: { 'X-API-Key': k } });
     out.textContent = `HTTP ${r.status}\n` + JSON.stringify(await r.json(), null, 2);
     if ($('tb')) { $('tb').disabled = false; showKey(k); }
@@ -648,13 +684,13 @@ async function osintFramework() {
     <p class="sub" style="max-width:780px">Search public sources directly inside Searchmenow using the quick-search options below. You do not need to install external tools for the supported Searchmenow searches. The directory also lists optional third-party resources; those links open external sites and are not required for Searchmenow's own searches.</p>
     <div class="search" style="margin-bottom:12px"><input id="osint-filter" placeholder="Search tools, categories or capabilities…" aria-label="Filter OSINT tools"><a class="btn btn-primary" href="/deep-search">${icon('search')} Start a search</a></div>
     <div class="links" style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 18px">
-      <a class="btn btn-secondary" href="/social-search">Choose social platforms</a><a class="btn btn-secondary" href="/people-search">People</a><a class="btn btn-secondary" href="/breach-search">Breach exposure</a><a class="btn btn-secondary" href="/lookup?type=email">Email checks</a><a class="btn btn-secondary" href="/lookup?type=phone">Phone</a><a class="btn btn-secondary" href="/lookup?type=ip">IP address</a>
+      <a class="btn btn-secondary" href="/social-search">Choose social platforms</a><a class="btn btn-secondary" href="/people-search">People</a><a class="btn btn-secondary" href="/breach-search">Email breach exposure</a><a class="btn btn-secondary" href="/password-check">Password exposure</a><a class="btn btn-secondary" href="/lookup?type=email">Email checks</a><a class="btn btn-secondary" href="/lookup?type=phone">Phone</a><a class="btn btn-secondary" href="/lookup?type=ip">IP address</a>
     </div>
     <form id="osint-quick-form" class="search" style="margin-bottom:22px">
       <select id="osint-kind" aria-label="Search criteria" style="max-width:280px">
         <option value="deep">Keyword / deep search</option><option value="social">Username across selected platforms</option><option value="people">Person / public profile</option>
         <option value="company">Company / employer</option><option value="school">School</option><option value="university">University / college</option>
-        <option value="youtube-email">YouTube channel / publicly listed email</option><option value="email">Email validation</option><option value="breach">Email breach exposure</option>
+        <option value="youtube-email">YouTube channel / publicly listed email</option><option value="email">Email validation</option><option value="breach">Email breach exposure</option><option value="password">Password exposure check</option>
         <option value="phone">Phone number</option><option value="ip">IP address</option>
       </select>
       <input id="osint-query" placeholder="Enter a name, username, company, school, email, phone or IP" aria-label="Search value" required>
@@ -687,6 +723,7 @@ async function osintFramework() {
       people: '/people-search?q=' + encode,
       email: '/lookup?type=email&q=' + encode,
       breach: '/breach-search?q=' + encode,
+      password: '/password-check',
       phone: '/lookup?type=phone&q=' + encode,
       ip: '/lookup?type=ip&q=' + encode,
     };
