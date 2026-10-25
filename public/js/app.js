@@ -65,7 +65,7 @@ function autorun() {
 }
 
 // ---------- router ----------
-const publicRoutes = { '/': landing, '/deep-search': () => publicSearchPage(deep), '/breach-search': () => publicSearchPage(breach), '/social-search': () => publicSearchPage(social), '/people-search': () => publicSearchPage(people), '/lookup': () => publicSearchPage(lookup), '/osint-framework': osintFramework, '/login': landing, '/signup': landing, '/pricing': pricing, '/contact': contact, '/opt-out': optOut, '/terms': terms, '/privacy': privacy };
+const publicRoutes = { '/': landing, '/deep-search': () => publicSearchPage(deep), '/breach-search': () => publicSearchPage(breach), '/social-search': () => publicSearchPage(social), '/people-search': () => publicSearchPage(people), '/lookup': () => publicSearchPage(lookup), '/osint-framework': osintFramework, '/login': landing, '/signup': landing, '/pricing': () => go('/', true), '/contact': contact, '/opt-out': optOut, '/terms': terms, '/privacy': privacy };
 const dashRoutes = {
   '/dashboard': ['home', 'Home', home],
   '/dashboard/deep-search': ['deep', 'deep-search', deep],
@@ -123,35 +123,36 @@ addEventListener('popstate', render);
 // ---------- public site ----------
 function siteNav() {
   return `<header class="site-nav">${brand()}<nav class="links">
-    <a href="/osint-framework">OSINT Framework</a><a href="/deep-search">Deep search</a><a href="/social-search">Username</a><a href="/people-search">People / keywords</a><a href="/breach-search">Breach check</a><a href="/lookup">Phone / email / IP</a><a href="/pricing">Pricing</a><a href="/contact">Contact</a>
+    <a href="/osint-framework">OSINT Framework</a><a href="/deep-search">Deep search</a><a href="/social-search">Username</a><a href="/people-search">People / keywords</a><a href="/breach-search">Breach check</a><a href="/lookup">Phone / email / IP</a><a href="/contact">Contact</a>
   </nav></header>`;
 }
 function siteFooter() {
   return `<footer class="site-footer"><div class="wrap">
-    <div class="links"><a href="/pricing">Pricing</a><a href="/contact">Contact</a><a href="/opt-out">Opt out of search results</a><a href="/terms">Terms &amp; permitted uses</a><a href="/privacy">Privacy</a></div>
+    <div class="links"><a href="/contact">Contact</a><a href="/opt-out">Opt out of search results</a><a href="/terms">Terms &amp; permitted uses</a><a href="/privacy">Privacy</a></div>
     <p class="legal">${LEGAL}</p><p class="legal">© ${new Date().getFullYear()} Searchmenow</p></div></footer>`;
 }
 function page(inner) { app.innerHTML = siteNav() + inner + siteFooter(); }
 
 function landing() {
   page(`<section class="hero wrap">
-    <p class="lbl">Live OSINT search</p>
-    <h1>Search a username, email, name or phone across public sources</h1>
-    <p>Searchmenow queries ${config.platforms}+ platforms and open data sources live, ranks matching public profiles and shows known breach exposure for an email.</p>
+    <p class="lbl">Free public-source search</p>
+    <h1>Search people, usernames, companies and education institutions</h1>
+    <p>Searchmenow is a free search platform for discovering public profiles, company-related information, schools, universities and other open-source information.</p>
     <form class="search" id="lf">
       <select id="lkind" aria-label="Search type" style="max-width:260px">
-        <option value="auto">Auto-detect search type</option><option value="deep">Keyword, name, website or address clue</option>
-        <option value="social">Username / social profiles</option><option value="people">Person name / public keywords</option>
+        <option value="auto">Auto-detect search type</option><option value="deep">Keyword / website / public-source deep search</option>
+        <option value="social">Username / social profiles</option><option value="people">Person name / public profiles</option>
+        <option value="company">Company name</option><option value="education">Education institution</option><option value="school">School name</option><option value="university">University name</option>
         <option value="breach">Email breach exposure</option><option value="phone">Phone / mobile number</option>
         <option value="email">Email validation</option><option value="ip">IP address / network</option>
       </select>
-      <input id="lq" placeholder="username, email, name, keyword, phone, IP or website" required aria-label="Search query">
+      <input id="lq" placeholder="username, person, company, school, university, email or keyword" required aria-label="Search query">
       <button class="btn btn-primary">${icon('search')} Search</button>
     </form>
-    <p class="mono">Unlimited public searches · no account or sign-in required</p>
+    <p class="mono">Free public search · no account or sign-in required · public-source results</p>
     <p class="mono" style="margin-top:8px">For your safety, do not enter Aadhaar, PAN, passport or other government ID numbers. Common Aadhaar, PAN and passport formats are blocked; this service is not for government-ID lookups.</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px"><a class="btn btn-secondary" href="/deep-search">${icon('graph')} Deep search</a><a class="btn btn-secondary" href="/breach-search">${icon('shield')} Check breach exposure</a></div>
-    <div class="kpis"><div><b>${config.platforms}</b><span>platforms</span></div><div><b>${config.peopleSources}</b><span>people sources</span></div><div><b>7</b><span>search types</span></div><div><b>Live</b><span>no stale cache</span></div></div>
+    <div class="kpis"><div><b>${config.platforms}</b><span>platforms</span></div><div><b>${config.peopleSources}</b><span>people sources</span></div><div><b>11+</b><span>search options</span></div><div><b>Live</b><span>no stale cache</span></div></div>
   </section>
   <section class="site-section"><div class="wrap">
     <h2>Search tools</h2><p class="sub">Choose a search type above or open a tool directly. Searches use public sources and available validation services.</p>
@@ -169,6 +170,16 @@ function landing() {
     let route = kind === 'auto'
       ? (/^(\d{1,3}\.){3}\d{1,3}$/.test(q) || (q.includes(':') && /^[0-9a-f:]+$/i.test(q)) ? 'ip' : /^\+?[\d\s().-]{7,20}$/.test(q) ? 'phone' : q.includes('@') ? 'breach' : /\s/.test(q) ? 'deep' : 'social')
       : kind;
+    const organizationModes = {
+      company: { name: q, keywords: 'company, employer, organization, business' },
+      education: { name: q, keywords: 'education, school, college, university, institution' },
+      school: { name: q, keywords: 'school, education, student, alumni' },
+      university: { name: q, keywords: 'university, college, education, alumni, faculty' },
+    };
+    if (organizationModes[route]) {
+      const p = new URLSearchParams({ q, name: organizationModes[route].name, keywords: organizationModes[route].keywords });
+      return go('/deep-search?' + p.toString());
+    }
     const path = { deep:'/deep-search', social:'/social-search', people:'/people-search', breach:'/breach-search', phone:'/lookup?type=phone', email:'/lookup?type=email', ip:'/lookup?type=ip' }[route] || '/deep-search';
     const sep = path.includes('?') ? '&' : '?';
     go(path + sep + 'q=' + encodeURIComponent(q));
@@ -472,7 +483,7 @@ function social() {
   if (params.get('q')) $('f').requestSubmit();
 }
 function people() {
-  view.innerHTML = `<h1>People search</h1><p class="sub">Search a full name or public keyword across ${config.peopleSources} profile sources. No sign-in required; rate limits apply.</p>
+  view.innerHTML = `<h1>People search</h1><p class="sub">Search a full name or public keyword across ${config.peopleSources} public profile sources. Searchmenow is free to use; results depend on the sources available.</p>
     <form class="search" id="f"><input id="q" placeholder="Jane Smith" required><button class="btn btn-primary" id="b">${icon('search')} Search</button></form><div id="out"></div>`;
   $('f').onsubmit = async (e) => {
     e.preventDefault();
