@@ -648,14 +648,50 @@ async function osintFramework() {
     <p class="sub" style="max-width:780px">Search public sources directly inside Searchmenow using the quick-search options below. You do not need to install external tools for the supported Searchmenow searches. The directory also lists optional third-party resources; those links open external sites and are not required for Searchmenow's own searches.</p>
     <div class="search" style="margin-bottom:12px"><input id="osint-filter" placeholder="Search tools, categories or capabilities…" aria-label="Filter OSINT tools"><a class="btn btn-primary" href="/deep-search">${icon('search')} Start a search</a></div>
     <div class="links" style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 18px">
-      <a class="btn btn-secondary" href="/social-search">Username</a><a class="btn btn-secondary" href="/people-search">People</a><a class="btn btn-secondary" href="/breach-search">Breach exposure</a><a class="btn btn-secondary" href="/lookup?type=email">Email</a><a class="btn btn-secondary" href="/lookup?type=phone">Phone</a><a class="btn btn-secondary" href="/lookup?type=ip">IP address</a><a class="btn btn-secondary" href="/deep-search?keywords=YouTube%20channel%2C%20publicly%20listed%20email">YouTube / public email</a><a class="btn btn-secondary" href="/deep-search?keywords=company%2C%20employer%2C%20organization">Company</a><a class="btn btn-secondary" href="/deep-search?keywords=school%2C%20university%2C%20education">Schools / universities</a>
+      <a class="btn btn-secondary" href="/social-search">Choose social platforms</a><a class="btn btn-secondary" href="/people-search">People</a><a class="btn btn-secondary" href="/breach-search">Breach exposure</a><a class="btn btn-secondary" href="/lookup?type=email">Email checks</a><a class="btn btn-secondary" href="/lookup?type=phone">Phone</a><a class="btn btn-secondary" href="/lookup?type=ip">IP address</a>
     </div>
+    <form id="osint-quick-form" class="search" style="margin-bottom:22px">
+      <select id="osint-kind" aria-label="Search criteria" style="max-width:280px">
+        <option value="deep">Keyword / deep search</option><option value="social">Username across selected platforms</option><option value="people">Person / public profile</option>
+        <option value="company">Company / employer</option><option value="school">School</option><option value="university">University / college</option>
+        <option value="youtube-email">YouTube channel / publicly listed email</option><option value="email">Email validation</option><option value="breach">Email breach exposure</option>
+        <option value="phone">Phone number</option><option value="ip">IP address</option>
+      </select>
+      <input id="osint-query" placeholder="Enter a name, username, company, school, email, phone or IP" aria-label="Search value" required>
+      <button class="btn btn-primary">${icon('search')} Search inside Searchmenow</button>
+    </form>
+    <p class="mono" style="margin:-12px 0 18px">Searchmenow runs its supported checks here. External directory entries are optional references, not required installs. Email-to-YouTube matching can only surface public or indexed clues; YouTube does not provide a public reverse lookup for arbitrary private email addresses.</p>
     <div id="osint-status" class="mono" style="margin:10px 0 14px">Loading directory…</div>
     <div id="osint-categories" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:12px"></div>
     <div class="notice" style="margin-top:22px">Use public and authorized sources only. Do not attempt to bypass login, private-profile, CAPTCHA or other access controls. Public content does not establish someone's current location. External services have their own terms, rate limits and privacy practices.</div>
     <p class="mono" style="margin-top:12px">Inspired by <a href="https://osintframework.com/" target="_blank" rel="noopener noreferrer">OSINT Framework</a>. Original project source: <a href="https://github.com/lockfale/OSINT-Framework" target="_blank" rel="noopener noreferrer">lockfale/OSINT-Framework</a> (MIT). This Searchmenow page is an independently curated implementation, not an official copy.</p>
   </section>`);
   const filter = $('osint-filter'), host = $('osint-categories'), status = $('osint-status');
+  $('osint-quick-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const value = $('osint-query').value.trim(), kind = $('osint-kind').value;
+    const encode = encodeURIComponent(value);
+    const org = {
+      company: ['company, employer, organization, business'],
+      school: ['school, education, student, alumni'],
+      university: ['university, college, education, alumni, faculty'],
+      'youtube-email': ['YouTube channel, creator, channel contact email, business email, publicly listed email'],
+    };
+    if (org[kind]) {
+      const p = new URLSearchParams({ q: value, name: kind === 'youtube-email' ? '' : value, keywords: org[kind][0] });
+      return go('/deep-search?' + p.toString());
+    }
+    const paths = {
+      deep: '/deep-search?q=' + encode,
+      social: '/social-search?username=' + encode,
+      people: '/people-search?name=' + encode,
+      email: '/lookup?type=email&email=' + encode,
+      breach: '/breach-search?email=' + encode,
+      phone: '/lookup?type=phone&number=' + encode,
+      ip: '/lookup?type=ip&ip=' + encode,
+    };
+    go(paths[kind] || paths.deep);
+  });
   const renderTools = (categories, query = '') => {
     const q = query.trim().toLowerCase();
     const visible = categories.map((c) => ({...c, tools:(c.tools || []).filter((t) => !q || [c.name,c.description,t.name,t.purpose,t.url].join(' ').toLowerCase().includes(q))})).filter((c) => c.tools.length && (!q || c.name.toLowerCase().includes(q) || c.description.toLowerCase().includes(q) || c.tools.length));
