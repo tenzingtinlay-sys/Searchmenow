@@ -100,9 +100,16 @@ async function socialSearch(req, res, q) {
 }
 
 // Deep search: pivots from one identifier to linked accounts, streamed as NDJSON.
+function looksLikeGovernmentId(value) {
+  const compact = String(value || '').toUpperCase().replace(/[\s-]/g, '');
+  return /^\d{12}$/.test(compact) || /^[A-Z]{5}\d{4}[A-Z]$/.test(compact) || /^[A-Z]\d{7}$/.test(compact) ||
+    /\b(?:AADHAAR|AADHAR|PAN CARD|PASSPORT|GOVERNMENT ID)\b/i.test(String(value || ''));
+}
+
 async function deepSearchHandler(req, res, q) {
   const seed = (q.get('q') || '').trim();
   if (seed.length < 2 || seed.length > 200) return json(res, 400, { error: 'Enter a username, email, name or website.' });
+  if (looksLikeGovernmentId(seed)) return json(res, 400, { error: 'Government ID numbers are not supported. Do not submit Aadhaar, PAN, passport or other sensitive ID numbers.' });
   res.writeHead(200, { 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-cache' });
   const send = (e) => res.write(JSON.stringify(e) + '\n');
   await deepSearch(seed, send, {
@@ -319,6 +326,11 @@ async function handler(req, res) {
   const publicSearches = {
     '/api/public/deep-search': [deepSearchHandler, 'q'],
     '/api/public/breach-search': [breachSearch, 'email'],
+    '/api/public/social-search': [socialSearch, 'username'],
+    '/api/public/people-search': [peopleSearch, 'name'],
+    '/api/public/lookup/phone': [phoneLookup, 'number'],
+    '/api/public/lookup/email': [emailLookup, 'email'],
+    '/api/public/lookup/ip': [ipLookup, 'ip'],
   };
   if (publicSearches[pathname]) {
     const [fn, param] = publicSearches[pathname];
