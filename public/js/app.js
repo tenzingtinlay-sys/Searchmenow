@@ -142,7 +142,7 @@ function landing() {
       <select id="lkind" aria-label="Search type" style="max-width:260px">
         <option value="auto">Auto-detect search type</option><option value="deep">Keyword / website / public-source deep search</option>
         <option value="social">Username / social profiles</option><option value="people">Person name / public profiles</option>
-        <option value="company">Company name</option><option value="education">Education institution</option><option value="school">School name</option><option value="university">University name</option>
+        <option value="company">Company name</option><option value="education">Education institution</option><option value="school">School name</option><option value="university">University name</option><option value="youtube-email">YouTube channel / publicly listed email</option>
         <option value="breach">Email breach exposure</option><option value="phone">Phone / mobile number</option>
         <option value="email">Email validation</option><option value="ip">IP address / network</option>
       </select>
@@ -175,6 +175,7 @@ function landing() {
       education: { name: q, keywords: 'education, school, college, university, institution' },
       school: { name: q, keywords: 'school, education, student, alumni' },
       university: { name: q, keywords: 'university, college, education, alumni, faculty' },
+      'youtube-email': { name: '', keywords: 'YouTube channel, creator, channel contact email, business email, publicly listed email' },
     };
     if (organizationModes[route]) {
       const p = new URLSearchParams({ q, name: organizationModes[route].name, keywords: organizationModes[route].keywords });
@@ -421,10 +422,12 @@ function deep() {
 }
 
 const SOCIAL_PLATFORM_GROUPS = {
-  'Major networks': ['Instagram', 'Facebook', 'X', 'TikTok', 'LinkedIn', 'Threads', 'Snapchat'],
-  'Video & streaming': ['YouTube', 'Twitch', 'Dailymotion', 'Rumble', 'Odysee'],
-  'Communities & discussion': ['Reddit', 'Quora', 'Tumblr', 'Telegram', 'VK', 'Weibo'],
-  'Open & alternative networks': ['Bluesky', 'Mastodon.social', 'Lemmy.world', 'Pixelfed.social', 'Minds', 'Gab', 'Gettr', 'Truth Social'],
+  'Social': ['Instagram', 'Facebook', 'X', 'TikTok', 'Pinterest', 'Snapchat', 'Threads', 'Tumblr', 'VK', 'Weibo', 'Bluesky', 'Mastodon.social', 'Pixelfed.social', 'Minds', 'Gab', 'Gettr', 'Truth Social', 'Roblox', 'Linktree', 'About.me'],
+  'Professional': ['LinkedIn', 'Behance', 'Dribbble', 'Flickr', 'Patreon', 'Ko-fi', 'Buy Me a Coffee', 'Kaggle', 'Hugging Face', 'Letterboxd', 'Last.fm', 'SoundCloud', 'Vimeo', 'Gravatar'],
+  'Developer': ['GitHub', 'GitLab', 'Dev.to', 'Medium', 'Keybase', 'npm', 'PyPI', 'Docker Hub', 'Replit', 'Codeberg', 'Bitbucket', 'HackerOne', 'LeetCode', 'Codewars'],
+  'Forums & communities': ['Reddit', 'Quora', 'Hacker News', 'Chess.com', 'Lichess', 'Lemmy.world'],
+  'Video & streaming': ['YouTube', 'Twitch', 'Dailymotion', 'Rumble', 'Odysee', 'Steam'],
+  'Messaging': ['Telegram'],
 };
 const SOCIAL_PLATFORM_NAMES = [...new Set(Object.values(SOCIAL_PLATFORM_GROUPS).flat())];
 
@@ -432,7 +435,7 @@ function social() {
   const params = new URLSearchParams(location.search);
   const requested = (params.get('platforms') || '').split(',').map((x) => x.trim()).filter((x) => SOCIAL_PLATFORM_NAMES.includes(x));
   let selected = new Set(requested.length ? requested : SOCIAL_PLATFORM_NAMES);
-  view.innerHTML = `<h1>Social search</h1><p class="sub">Choose which social networks to check. Search one platform for a focused lookup or several to compare public profile matches. Some networks block automated checks, so verify matches on the source site.</p>
+  view.innerHTML = `<h1>Social search</h1><p class="sub">Choose a category—Social, Professional, Developer, Forums & communities, Video & streaming, or Messaging—then select individual platforms. Searchmenow checks public profile URLs in this workspace; some services block automated checks, so verify results. No app installation is needed for supported checks.</p>
     <form id="f">
       <div class="field"><label for="q">Username or handle</label><input id="q" placeholder="username (without @)" autocomplete="off" required></div>
       <div class="section" style="margin:16px 0">
@@ -642,10 +645,10 @@ async function osintFramework() {
   page(`<section class="wrap" style="padding:34px 24px 48px;min-height:65vh">
     <p class="lbl">Open-source intelligence · tool directory</p>
     <h1 style="font-size:30px;margin-bottom:10px">OSINT Framework</h1>
-    <p class="sub" style="max-width:780px">Browse tools by research task, search the directory, or jump directly into Searchmenow's public search tools. This is a curated directory—not a promise that every external tool provides data or is free to use.</p>
+    <p class="sub" style="max-width:780px">Search public sources directly inside Searchmenow using the quick-search options below. You do not need to install external tools for the supported Searchmenow searches. The directory also lists optional third-party resources; those links open external sites and are not required for Searchmenow's own searches.</p>
     <div class="search" style="margin-bottom:12px"><input id="osint-filter" placeholder="Search tools, categories or capabilities…" aria-label="Filter OSINT tools"><a class="btn btn-primary" href="/deep-search">${icon('search')} Start a search</a></div>
     <div class="links" style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 18px">
-      <a class="btn btn-secondary" href="/social-search">Username</a><a class="btn btn-secondary" href="/people-search">People</a><a class="btn btn-secondary" href="/breach-search">Breach exposure</a><a class="btn btn-secondary" href="/lookup?type=email">Email</a><a class="btn btn-secondary" href="/lookup?type=phone">Phone</a><a class="btn btn-secondary" href="/lookup?type=ip">IP address</a>
+      <a class="btn btn-secondary" href="/social-search">Username</a><a class="btn btn-secondary" href="/people-search">People</a><a class="btn btn-secondary" href="/breach-search">Breach exposure</a><a class="btn btn-secondary" href="/lookup?type=email">Email</a><a class="btn btn-secondary" href="/lookup?type=phone">Phone</a><a class="btn btn-secondary" href="/lookup?type=ip">IP address</a><a class="btn btn-secondary" href="/deep-search?keywords=YouTube%20channel%2C%20publicly%20listed%20email">YouTube / public email</a><a class="btn btn-secondary" href="/deep-search?keywords=company%2C%20employer%2C%20organization">Company</a><a class="btn btn-secondary" href="/deep-search?keywords=school%2C%20university%2C%20education">Schools / universities</a>
     </div>
     <div id="osint-status" class="mono" style="margin:10px 0 14px">Loading directory…</div>
     <div id="osint-categories" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:12px"></div>
