@@ -409,29 +409,68 @@ function deep() {
   autorun();
 }
 
+const SOCIAL_PLATFORM_GROUPS = {
+  'Major networks': ['Instagram', 'Facebook', 'X', 'TikTok', 'LinkedIn', 'Threads', 'Snapchat'],
+  'Video & streaming': ['YouTube', 'Twitch', 'Dailymotion', 'Rumble', 'Odysee'],
+  'Communities & discussion': ['Reddit', 'Quora', 'Tumblr', 'Telegram', 'VK', 'Weibo'],
+  'Open & alternative networks': ['Bluesky', 'Mastodon.social', 'Lemmy.world', 'Pixelfed.social', 'Minds', 'Gab', 'Gettr', 'Truth Social'],
+};
+const SOCIAL_PLATFORM_NAMES = [...new Set(Object.values(SOCIAL_PLATFORM_GROUPS).flat())];
+
 function social() {
-  view.innerHTML = `<h1>Social search</h1><p class="sub">Find public profiles that match a username across ${config.platforms} platforms. No sign-in required; rate limits apply.</p>
-    <form class="search" id="f"><input id="q" placeholder="username" autocomplete="off" required><button class="btn btn-primary" id="b">${icon('search')} Search</button></form><div id="out"></div>`;
+  const params = new URLSearchParams(location.search);
+  const requested = (params.get('platforms') || '').split(',').map((x) => x.trim()).filter((x) => SOCIAL_PLATFORM_NAMES.includes(x));
+  let selected = new Set(requested.length ? requested : SOCIAL_PLATFORM_NAMES);
+  view.innerHTML = `<h1>Social search</h1><p class="sub">Choose which social networks to check. Search one platform for a focused lookup or several to compare public profile matches. Some networks block automated checks, so verify matches on the source site.</p>
+    <form id="f">
+      <div class="field"><label for="q">Username or handle</label><input id="q" placeholder="username (without @)" autocomplete="off" required></div>
+      <div class="section" style="margin:16px 0">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <div><p class="lbl" style="margin:0">Choose platforms <span class="pill" id="selected-count">${selected.size} selected</span></p><p class="mono" style="margin:6px 0 0">Select one, a few, or all available networks.</p></div>
+          <div style="display:flex;gap:8px"><button type="button" class="btn btn-secondary btn-sm" id="select-all">Select all</button><button type="button" class="btn btn-quiet btn-sm" id="clear-all">Clear</button></div>
+        </div>
+        <input id="platform-filter" placeholder="Filter platform names…" aria-label="Filter platform names" style="margin-top:14px">
+        <div id="platform-groups" style="display:flex;flex-direction:column;gap:16px;margin-top:14px">
+          ${Object.entries(SOCIAL_PLATFORM_GROUPS).map(([group,names]) => `<div class="platform-group"><p class="lbl">${esc(group)}</p><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px">${names.map((name) => `<label class="row platform-choice" data-platform="${esc(name.toLowerCase())}" style="justify-content:flex-start;gap:9px;cursor:pointer;padding:10px;border:1px solid var(--line);border-radius:10px"><input type="checkbox" name="platform" value="${esc(name)}" ${selected.has(name) ? 'checked' : ''} style="width:auto;min-height:0"><span>${esc(name)}</span></label>`).join('')}</div></div>`).join('')}
+        </div>
+      </div>
+      <button class="btn btn-primary" id="b">${icon('search')} Search selected platforms</button>
+    </form><div id="out"></div>`;
+  $('q').value = params.get('q') || '';
+  const updateSelected = () => {
+    selected = new Set([...view.querySelectorAll('input[name="platform"]:checked')].map((x) => x.value));
+    $('selected-count').textContent = `${selected.size} selected`;
+  };
+  view.querySelectorAll('input[name="platform"]').forEach((cb) => cb.addEventListener('change', updateSelected));
+  $('select-all').onclick = () => { view.querySelectorAll('input[name="platform"]').forEach((cb) => { if (cb.closest('.platform-choice').style.display !== 'none') cb.checked = true; }); updateSelected(); };
+  $('clear-all').onclick = () => { view.querySelectorAll('input[name="platform"]').forEach((cb) => { cb.checked = false; }); updateSelected(); };
+  $('platform-filter').oninput = () => {
+    const q = $('platform-filter').value.trim().toLowerCase();
+    view.querySelectorAll('.platform-choice').forEach((el) => { el.style.display = el.dataset.platform.includes(q) ? 'flex' : 'none'; });
+    view.querySelectorAll('.platform-group').forEach((group) => { group.style.display = [...group.querySelectorAll('.platform-choice')].some((el) => el.style.display !== 'none') ? '' : 'none'; });
+  };
   $('f').onsubmit = async (e) => {
     e.preventDefault();
-    const u = $('q').value.trim(), out = $('out'); $('b').disabled = true;
-    history.replaceState(null, '', '?q=' + encodeURIComponent(u));
-    out.innerHTML = `<div class="stats"><span class="stream-cursor"></span><span id="st">Checking 0/${config.platforms}</span><span id="fd">0 found</span></div><div class="results" id="rs"></div>`;
+    const u = $('q').value.trim().replace(/^@/, ''), out = $('out');
+    updateSelected();
+    if (!selected.size) { out.innerHTML = errBox('Select at least one social platform to search.'); return; }
+    $('b').disabled = true;
+    history.replaceState(null, '', '?q=' + encodeURIComponent(u) + '&platforms=' + encodeURIComponent([...selected].join(',')));
+    out.innerHTML = `<div class="stats"><span class="stream-cursor"></span><span id="st">Checking 0/${selected.size}</span><span id="fd">0 found</span></div><div class="results" id="rs"></div>`;
     const rows = []; let done = 0, found = 0;
     try {
-      await stream((location.pathname === '/social-search' ? '/api/public/social-search' : '/api/social-search') + '?username=' + encodeURIComponent(u), (x) => {
+      await stream('/api/public/social-search?username=' + encodeURIComponent(u) + '&platforms=' + encodeURIComponent([...selected].join(',')), (x) => {
         rows.push(x); done++; if (x.status === 'found') found++;
         rows.sort((a, b) => (a.status === 'found' ? 0 : 1) - (b.status === 'found' ? 0 : 1) || a.platform.localeCompare(b.platform));
-        $('st').textContent = `Checked ${done}/${config.platforms}`; $('fd').textContent = `${found} found` + (rows.some((r) => r.status === 'blocked') ? ` · ${rows.filter((r) => r.status === 'blocked').length} blocked` : '');
-        $('rs').innerHTML = rows.map((x) => `<div class="row"><div><b>${esc(x.platform)}</b><br>${x.status === 'found' ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.url)}</a>` : `<span class="mono">${esc(x.url)}</span>`}</div><span class="pill ${x.status === 'blocked' ? 'error' : x.status}" ${x.status === 'blocked' ? 'title="This site blocked the automated check. Open the link to verify."' : ''}>${x.status.replace('_', ' ')}</span></div>`).join('');
+        $('st').textContent = `Checked ${done}/${selected.size}`; $('fd').textContent = `${found} found` + (rows.some((r) => r.status === 'blocked') ? ` · ${rows.filter((r) => r.status === 'blocked').length} blocked` : '');
+        $('rs').innerHTML = rows.map((x) => `<div class="row"><div><b>${esc(x.platform)}</b><br>${x.status === 'found' ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.url)}</a>` : `<span class="mono">${esc(x.url)}</span>`}</div><span class="pill ${x.status === 'blocked' ? 'error' : x.status}">${x.status.replace('_', ' ')}</span></div>`).join('');
       });
       out.querySelector('.stream-cursor')?.remove();
     } catch (err) { if (document.body.contains(out)) out.innerHTML = errBox(err.message); }
     if ($('b')) $('b').disabled = false;
   };
-  autorun();
+  if (params.get('q')) $('f').requestSubmit();
 }
-
 function people() {
   view.innerHTML = `<h1>People search</h1><p class="sub">Search a full name or public keyword across ${config.peopleSources} profile sources. No sign-in required; rate limits apply.</p>
     <form class="search" id="f"><input id="q" placeholder="Jane Smith" required><button class="btn btn-primary" id="b">${icon('search')} Search</button></form><div id="out"></div>`;
