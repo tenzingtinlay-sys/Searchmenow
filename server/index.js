@@ -206,6 +206,49 @@ async function peopleSearch(req, res, q) {
 
 // ---- Lookups: phone / email / IP. APILayer when APILAYER_API_KEY is set, free fallbacks otherwise ----
 const AL_KEY = process.env.APILAYER_API_KEY;
+const GOOGLE_API_KEY = (process.env.GOOGLE_API_KEY || '').trim();
+
+// Google Cloud integrations. Credentials stay server-side; never return the key to clients.
+async function googleYouTube(req, res, q) {
+  const query = (q.get('q') || '').trim();
+  if (query.length < 2 || query.length > 160) return json(res, 400, { error: 'Enter a search query between 2 and 160 characters.' });
+  if (!GOOGLE_API_KEY) return json(res, 503, { error: 'Google search is not configured. Set GOOGLE_API_KEY in the deployment environment.' });
+  if (limited('google-youtube:' + ipOf(req), 20, 60 * 1000)) return json(res, 429, { error: 'Too many Google searches. Try again in a minute.' });
+  try {
+    const url = new URL('https://www.googleapis.com/youtube/v3/search');
+    url.search = new URLSearchParams({ part: 'snippet', type: 'video,channel', maxResults: '10', q: query, key: GOOGLE_API_KEY }).toString();
+    const r = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(10000) });
+    const d = await r.json();
+    if (!r.ok) return json(res, r.status === 403 ? 502 : r.status, { error: d.error?.message || 'YouTube Data API request failed.', provider: 'YouTube Data API v3' });
+    const results = (d.items || []).map((item) => {
+      const channel = item.snippet?.channelTitle || '';
+      const id = item.id?.videoId ? { videoId: item.id.videoId } : item.id?.channelId ? { channelId: item.id.channelId } : {};
+      const video = !!id.videoId;
+      return { type: video ? 'video' : 'channel', title: item.snippet?.title || '', description: item.snippet?.description || '', channelTitle: channel, publishedAt: item.snippet?.publishedAt || null, thumbnail: item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.default?.url || null, url: video ? 'https://www.youtube.com/watch?v=' + encodeURIComponent(id.videoId) : 'https://www.youtube.com/channel/' + encodeURIComponent(id.channelId) };
+    });
+    return json(res, 200, { provider: 'YouTube Data API v3', query, results });
+  } catch (e) { return json(res, 502, { error: 'YouTube search request failed.', detail: e.name === 'TimeoutError' ? 'Provider timeout' : 'Network or response error' }); }
+}
+
+async function googlePlaces(req, res, q) {
+  const query = (q.get('q') || '').trim();
+  if (query.length < 2 || query.length > 160) return json(res, 400, { error: 'Enter a place or location query between 2 and 160 characters.' });
+  if (!GOOGLE_API_KEY) return json(res, 503, { error: 'Google Maps search is not configured. Set GOOGLE_API_KEY in the deployment environment.' });
+  if (limited('google-places:' + ipOf(req), 15, 60 * 1000)) return json(res, 429, { error: 'Too many place searches. Try again in a minute.' });
+  try {
+    const r = await fetch('https://places.googleapis.com/v1/places:searchText', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': GOOGLE_API_KEY, 'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location,places.googleMapsUri,places.types' },
+      body: JSON.stringify({ textQuery: query, maxResultCount: 10 }),
+      signal: AbortSignal.timeout(10000),
+    });
+    const d = await r.json();
+    if (!r.ok) return json(res, r.status === 403 ? 502 : r.status, { error: d.error?.message || 'Google Places API request failed.', provider: 'Google Places API' });
+    const results = (d.places || []).map((p) => ({ id: p.id, name: p.displayName?.text || '', address: p.formattedAddress || '', latitude: p.location?.latitude ?? null, longitude: p.location?.longitude ?? null, mapUrl: p.googleMapsUri || null, types: p.types || [] }));
+    return json(res, 200, { provider: 'Google Places API', query, results });
+  } catch (e) { return json(res, 502, { error: 'Google Places request failed.', detail: e.name === 'TimeoutError' ? 'Provider timeout' : 'Network or response error' }); }
+}
+
 const CF_TOKEN = (process.env.CF_BEACON_TOKEN || '').replace(/[^a-zA-Z0-9]/g, '');
 const apilayer = async (p) => {
   const r = await fetch(`https://api.apilayer.com/${p}`, { headers: { apikey: AL_KEY }, signal: AbortSignal.timeout(12000) });
@@ -411,6 +454,9 @@ async function handler(req, res) {
     if (err) return json(res, 402, { error: err });
     return fn(req, res, searchParams);
   }
+  if (pathname === '/api/google/status') return json(res, 200, { configured: !!GOOGLE_API_KEY, services: { youtubeDataApiV3: !!GOOGLE_API_KEY, placesApi: !!GOOGLE_API_KEY }, note: 'Credential presence only; API enablement, billing, restrictions and quota have not been verified.' });
+  if (pathname === '/api/public/google/youtube' && req.method === 'GET') return googleYouTube(req, res, searchParams);
+  if (pathname === '/api/public/google/places' && req.method === 'GET') return googlePlaces(req, res, searchParams);
   if (pathname === '/api/config') return json(res, 200, { platforms: platforms.length, apiDailyLimit: DAILY_LIMIT, apilayer: !!AL_KEY, analytics: !!CF_TOKEN, breachEnabled: true, breachSource: process.env.HIBP_API_KEY ? 'Have I Been Pwned' : 'XposedOrNot (free)', peopleSources: peopleSources.length, plans: store.PLANS, billingDemo: process.env.BILLING_DEMO === 'true' });
   if (pathname === '/research') return serveStatic(req, res, '/research.html');
   serveStatic(req, res, pathname);
