@@ -137,7 +137,7 @@ async function breachSearch(req, res, q) {
     if (r.status === 404) return json(res, 200, { breaches: [] });
     if (!r.ok) return json(res, 502, { error: `Upstream error (${r.status}).` });
     const data = await r.json();
-    json(res, 200, { breaches: data.map((b) => ({ name: b.Title, domain: b.Domain, date: b.BreachDate, count: b.PwnCount, data: b.DataClasses })) });
+    json(res, 200, { source: 'Have I Been Pwned', breaches: data.map((b) => ({ name: b.Title, domain: b.Domain, date: b.BreachDate, count: b.PwnCount, data: b.DataClasses })) });
   } catch { json(res, 502, { error: 'Could not reach breach service.' }); }
 }
 
@@ -149,6 +149,33 @@ async function xposedOrNot(res, email) {
     const list = d?.ExposedBreaches?.breaches_details || [];
     json(res, 200, { source: 'XposedOrNot', breaches: list.map((b) => ({ name: b.breach, domain: b.domain, date: String(b.xposed_date || ''), count: b.xposed_records, data: String(b.xposed_data || '').split(';').filter(Boolean) })) });
   } catch { json(res, 502, { error: 'Could not reach breach service.' }); }
+}
+
+// Password exposure check using HIBP's free k-anonymous Pwned Passwords range API.
+// The full password is hashed locally on this server; only the first five SHA-1 hex
+// characters are sent upstream. The password and full hash are never persisted.
+async function passwordExposure(req, res, password) {
+  if (typeof password !== 'string' || !password.length || password.length > 1024) {
+    return json(res, 400, { error: 'Enter a password between 1 and 1024 characters.' });
+  }
+  try {
+    const hash = crypto.createHash('sha1').update(password, 'utf8').digest('hex').toUpperCase();
+    const prefix = hash.slice(0, 5), suffix = hash.slice(5);
+    const r = await fetch(`https://api.pwnedpasswords.com/range/${prefix}?Add-Padding=true`, {
+      headers: { 'User-Agent': 'Searchmenow/1.0 (Pwned Passwords range check)', 'Add-Padding': 'true' },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!r.ok) return json(res, 502, { error: 'The password exposure service is temporarily unavailable.' });
+    const lines = (await r.text()).split(/\r?\n/);
+    let count = 0;
+    for (const line of lines) {
+      const parts = line.trim().split(':');
+      if (parts.length === 2 && parts[0].toUpperCase() === suffix) { count = Number(parts[1]) || 0; break; }
+    }
+    return json(res, 200, { pwned: count > 0, count, source: 'Have I Been Pwned Pwned Passwords', method: 'k-anonymity SHA-1 range', fullPasswordSentUpstream: false });
+  } catch {
+    return json(res, 502, { error: 'Could not reach the password exposure service.' });
+  }
 }
 
 // People search: public name lookups across open sources, streamed as NDJSON.
@@ -277,6 +304,12 @@ async function handler(req, res) {
     if (!k) return json(res, 404, { error: 'Unknown key.' });
     return json(res, 200, { name: k.name, created: k.created, usedToday: k.day === today() ? k.used : 0, total: k.total, dailyLimit: DAILY_LIMIT });
   }
+  if (pathname === '/api/public/password-check' && req.method === 'POST') {
+    if (limited('password:' + ipOf(req), 20, 60 * 1000)) return json(res, 429, { error: 'Too many password checks from this network. Wait a minute and try again.' });
+    const body = await readBody(req);
+    return passwordExposure(req, res, body.password);
+  }
+
   const v1 = { '/api/v1/social': socialSearch, '/api/v1/deep': deepSearchHandler, '/api/v1/people': peopleSearch, '/api/v1/breach': breachSearch, '/api/v1/phone': phoneLookup, '/api/v1/email': emailLookup, '/api/v1/ip': ipLookup }[pathname];
   if (v1) {
     const err = useKey(req, searchParams);
