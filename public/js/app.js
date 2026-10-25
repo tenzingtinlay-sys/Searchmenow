@@ -546,7 +546,7 @@ function passwordCheck() {
       <input id="account-id" type="text" autocomplete="off" inputmode="email" maxlength="254" placeholder="name@example.com or +14155552671" aria-label="Login email or phone number">
       <p class="mono">Email checks search breach records. Phone checks return available validation and region metadata only. Enter only an account identifier you are authorized to check.</p>
       <label for="pw">Password to check</label>
-      <input id="pw" type="password" autocomplete="new-password" placeholder="Enter a password to check" required maxlength="1024" aria-label="Password to check">
+      <input id="pw" type="password" autocomplete="new-password" placeholder="Enter a password to check (optional if checking email or phone)" maxlength="1024" aria-label="Password to check">
       <button class="btn btn-primary" id="pwb" type="submit">${icon('shield')} Check exposure</button>
     </form>
     <p class="mono">Privacy: the browser sends the password to Searchmenow over HTTPS. Searchmenow hashes it and sends only the first five SHA-1 characters upstream. The full password is not sent to Have I Been Pwned and is not stored by this feature.</p>
@@ -557,6 +557,7 @@ function passwordCheck() {
   $('pf').onsubmit = async (e) => {
     e.preventDefault();
     const password = $('pw').value, account = $('account-id').value.trim(), out = $('pwout'), button = $('pwb');
+    if (!password && !account) { out.innerHTML = errBox('Enter a password, login email address, or phone number to check.'); return; }
     const isEmail = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(account);
     const digits = account.replace(/\\D/g, '');
     const isPhone = !isEmail && digits.length >= 7 && digits.length <= 15 && /^[+\\d\\s().-]+$/.test(account);
@@ -565,7 +566,8 @@ function passwordCheck() {
     out.innerHTML = '<div class="stats"><span class="stream-cursor"></span><span>Checking password and selected account identifier…</span></div>';
     const panels = [];
     try {
-      const jobs = [fetch('/api/public/password-check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }) }).then(async r => { const d=await r.json().catch(()=>({})); if(!r.ok||d.error) throw Error(d.error||'Password check failed.'); return {kind:'password',data:d}; })];
+      const jobs = [];
+      if (password) jobs.push(fetch('/api/public/password-check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }) }).then(async r => { const d=await r.json().catch(()=>({})); if(!r.ok||d.error) throw Error(d.error||'Password check failed.'); return {kind:'password',data:d}; }));
       if (isEmail) jobs.push(fetch('/api/public/breach-search?email='+encodeURIComponent(account), {headers:{Accept:'application/json'}}).then(async r=>{const d=await r.json().catch(()=>({}));if(!r.ok||d.error)throw Error(d.error||'Email breach check failed.');return {kind:'email',data:d};}));
       if (isPhone) jobs.push(fetch('/api/public/lookup/phone?number='+encodeURIComponent(account), {headers:{Accept:'application/json'}}).then(async r=>{const d=await r.json().catch(()=>({}));if(!r.ok||d.error)throw Error(d.error||'Phone lookup failed.');return {kind:'phone',data:d};}));
       const results = await Promise.allSettled(jobs);
@@ -579,7 +581,7 @@ function passwordCheck() {
       if(passwordResult && !passwordResult.value.data.pwned) panels.push('<div class="notice"><b>No password match returned</b><p>No match was found in the checked Pwned Passwords corpus. This does not guarantee the password is safe.</p></div>');
       if(isEmail && !emailResult) panels.push('<div class="notice err"><b>Email breach check unavailable</b><p>'+esc(failed.find(x=>x.reason)?.reason?.message||'Try again later.')+'</p></div>');
       if(isPhone && !phoneResult) panels.push('<div class="notice err"><b>Phone lookup unavailable</b><p>'+esc(failed.find(x=>x.reason)?.reason?.message||'Try again later.')+'</p></div>');
-      if(!passwordResult) panels.push('<div class="notice err"><b>Password check unavailable</b><p>'+esc(failed[0]?.reason?.message||'Try again later.')+'</p></div>');
+      if(password && !passwordResult) panels.push('<div class="notice err"><b>Password check unavailable</b><p>'+esc(failed[0]?.reason?.message||'Try again later.')+'</p></div>');
       out.innerHTML=panels.join('');
       $('pw').value = '';
     } catch (err) { out.innerHTML = errBox(err.message); }
