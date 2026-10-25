@@ -28,7 +28,7 @@ async function loadMe() {
 function go(url, replace) { history[replace ? 'replaceState' : 'pushState'](null, '', url); render(); }
 const brand = () => `<a class="brand" href="/" aria-label="Searchmenow home">${LOGO}<span>searchme<span class="dim">now</span></span></a>`;
 const perDay = (n) => n ? `${n} searches per day` : 'Unlimited searches';
-const errBox = (m) => `<div class="notice err">${esc(m)}${/limit reached/i.test(m) ? ' <a href="/dashboard/billing">Upgrade</a>' : ''}</div>`;
+const errBox = (m) => `<div class="notice err">${esc(m)}</div>`;
 
 // Classifies free text into the right search.
 function routeFor(v) {
@@ -410,7 +410,7 @@ function deep() {
 }
 
 function social() {
-  view.innerHTML = `<h1>Social search</h1><p class="sub">Find public profiles that match a username across ${config.platforms} platforms. 1 search credit.</p>
+  view.innerHTML = `<h1>Social search</h1><p class="sub">Find public profiles that match a username across ${config.platforms} platforms. No sign-in required; rate limits apply.</p>
     <form class="search" id="f"><input id="q" placeholder="username" autocomplete="off" required><button class="btn btn-primary" id="b">${icon('search')} Search</button></form><div id="out"></div>`;
   $('f').onsubmit = async (e) => {
     e.preventDefault();
@@ -433,7 +433,7 @@ function social() {
 }
 
 function people() {
-  view.innerHTML = `<h1>People search</h1><p class="sub">Search a full name across ${config.peopleSources} public profile sources. 1 search credit.</p>
+  view.innerHTML = `<h1>People search</h1><p class="sub">Search a full name or public keyword across ${config.peopleSources} profile sources. No sign-in required; rate limits apply.</p>
     <form class="search" id="f"><input id="q" placeholder="Jane Smith" required><button class="btn btn-primary" id="b">${icon('search')} Search</button></form><div id="out"></div>`;
   $('f').onsubmit = async (e) => {
     e.preventDefault();
