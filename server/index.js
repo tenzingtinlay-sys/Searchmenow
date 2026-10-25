@@ -101,9 +101,9 @@ async function socialSearch(req, res, q) {
 
 // Deep search: pivots from one identifier to linked accounts, streamed as NDJSON.
 function looksLikeGovernmentId(value) {
-  const compact = String(value || '').toUpperCase().replace(/[\\s-]/g, '');
-  return /^\\d{12}$/.test(compact) || /^[A-Z]{5}\\d{4}[A-Z]$/.test(compact) || /^[A-Z]\\d{7}$/.test(compact) ||
-    /\\b(?:AADHAAR|AADHAR|PAN CARD|PASSPORT|GOVERNMENT ID)\\b/i.test(String(value || ''));
+  const compact = String(value || '').toUpperCase().replace(/[\s-]/g, '');
+  return /^\d{12}$/.test(compact) || /^[A-Z]{5}\d{4}[A-Z]$/.test(compact) || /^[A-Z]\d{7}$/.test(compact) ||
+    /\b(?:AADHAAR|AADHAR|PAN CARD|PASSPORT|GOVERNMENT ID)\b/i.test(String(value || ''));
 }
 
 async function deepSearchHandler(req, res, q) {
