@@ -94,9 +94,13 @@ async function checkPlatform(p, u) {
 async function socialSearch(req, res, q) {
   const u = (q.get('username') || '').trim();
   if (!/^[A-Za-z0-9._-]{1,40}$/.test(u)) return json(res, 400, { error: 'Enter a valid username (letters, numbers, . _ -).' });
+  // Optional allow-list lets users search only the platforms they selected.
+  const requested = (q.get('platforms') || '').split(',').map((x) => x.trim()).filter(Boolean);
+  const selected = requested.length ? platforms.filter((p) => requested.includes(p.name)) : platforms;
+  if (requested.length && selected.length !== new Set(requested).size) return json(res, 400, { error: 'One or more selected platforms are not supported.' });
   // Stream results as NDJSON so the UI can update live.
   res.writeHead(200, { 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-cache' });
-  await Promise.all(platforms.map(async (p) => res.write(JSON.stringify(await checkPlatform(p, u)) + '\n')));
+  await Promise.all(selected.map(async (p) => res.write(JSON.stringify(await checkPlatform(p, u)) + '\n')));
   res.end();
 }
 
