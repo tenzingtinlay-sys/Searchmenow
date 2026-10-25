@@ -1,0 +1,70 @@
+name: Run Searchmenow Node.js
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "server/**"
+      - "public/**"
+      - "package.json"
+      - ".github/workflows/run-nodejs.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  run-nodejs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Verify Node.js runtime and app syntax
+        run: |
+          node --version
+          npm --version
+          for f in server/*.js api/*.js public/js/*.js; do
+            if [ -f "$f" ]; then node --check "$f"; fi
+          done
+
+      - name: Start Searchmenow server
+        env:
+          PORT: 3000
+          DATA_DIR: /tmp/searchmenow-ci-data
+        run: |
+          mkdir -p "$DATA_DIR"
+          npm start > /tmp/searchmenow.log 2>&1 &
+          echo $! > /tmp/searchmenow.pid
+
+      - name: Wait for health endpoint
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:3000/api/health; then
+              echo
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Server did not become healthy. Logs:"
+          cat /tmp/searchmenow.log
+          exit 1
+
+      - name: Smoke-test the website and API
+        run: |
+          curl --fail --silent http://127.0.0.1:3000/ | grep -q Searchmenow
+          curl --fail --silent http://127.0.0.1:3000/js/app.js > /dev/null
+          echo "Searchmenow Node.js server passed startup, health, homepage and JavaScript checks."
+
+      - name: Stop server
+        if: always()
+        run: |
+          if [ -f /tmp/searchmenow.pid ]; then kill "$(cat /tmp/searchmenow.pid)" 2>/dev/null || true; fi
