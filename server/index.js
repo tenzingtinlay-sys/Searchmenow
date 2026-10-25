@@ -315,6 +315,21 @@ async function handler(req, res) {
     } catch (e) { return json(res, 400, { error: e.message }); }
   }
 
+  // ---- Public search routes: no account required, but rate-limited and opt-out aware ----
+  const publicSearches = {
+    '/api/public/deep-search': [deepSearchHandler, 'q'],
+    '/api/public/breach-search': [breachSearch, 'email'],
+  };
+  if (publicSearches[pathname]) {
+    const [fn, param] = publicSearches[pathname];
+    const query = (searchParams.get(param) || '').trim();
+    if (!query) return json(res, 400, { error: 'Enter something to search.' });
+    if (query.length > 200) return json(res, 400, { error: 'Search query is too long.' });
+    if (limited(`public-search:${pathname}:${ipOf(req)}`, 5, 10 * 60e3)) return json(res, 429, { error: 'Public search limit reached. Please wait 10 minutes before trying again.' });
+    if (store.isOptedOut(query)) return json(res, 451, { error: 'This identifier has been removed from search results at the owner’s request.' });
+    return fn(req, res, searchParams);
+  }
+
   // ---- Dashboard searches: require sign-in, cost one credit, respect opt-outs ----
   const searches = {
     '/api/social-search': [socialSearch, 'social', 'username'], '/api/deep-search': [deepSearchHandler, 'deep', 'q'], '/api/people-search': [peopleSearch, 'people', 'name'],
