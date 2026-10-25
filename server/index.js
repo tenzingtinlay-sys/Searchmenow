@@ -319,6 +319,11 @@ async function handler(req, res) {
   const publicSearches = {
     '/api/public/deep-search': [deepSearchHandler, 'q'],
     '/api/public/breach-search': [breachSearch, 'email'],
+    '/api/public/social-search': [socialSearch, 'username'],
+    '/api/public/people-search': [peopleSearch, 'name'],
+    '/api/public/lookup/phone': [phoneLookup, 'number'],
+    '/api/public/lookup/email': [emailLookup, 'email'],
+    '/api/public/lookup/ip': [ipLookup, 'ip'],
   };
   if (publicSearches[pathname]) {
     const [fn, param] = publicSearches[pathname];
