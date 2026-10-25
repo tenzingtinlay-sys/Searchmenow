@@ -138,3 +138,22 @@ pre.notice { font-family: var(--mono); font-size: 12px; white-space: pre-wrap; m
   form.search { flex-wrap: wrap } form.search .btn { width: 100% }
   .readout .unit { display: none }
 }
+
+
+/* Account security checker additions */
+.security-page{max-width:850px;margin:32px auto;padding:28px;border:1px solid var(--line,#263750);border-radius:16px;background:linear-gradient(145deg,#111c2e,#0a1321);color:var(--text,#f1f6ff)}
+.security-heading .eyebrow{font-size:10px;letter-spacing:2px;color:#70e3c0;font-weight:850}
+.security-heading h1{font-size:clamp(26px,4vw,36px);letter-spacing:-1px;margin:5px 0 12px}
+.security-heading .sub{color:var(--muted,#9baec6);font-size:13px;max-width:720px;line-height:1.8}
+.security-form{display:grid;gap:9px;margin:24px 0;padding:20px;border:1px solid #30445c;border-radius:12px;background:#0a1320}
+.security-form label{display:block;margin-top:5px;font-size:12px;font-weight:700}
+.security-form label span{color:var(--muted,#9baec6);font-weight:400}
+.security-form input{width:100%;margin-bottom:7px}
+.security-form button{justify-self:start;margin-top:8px}
+.security-results .notice{margin:10px 0;padding:15px;border:1px solid #2c6258;background:#0b211e;border-radius:10px}
+.security-results .notice.err{border-color:#75464b;background:#241416}
+.security-results .notice p,.security-results .notice li{font-size:12px;line-height:1.7}
+.security-results ul{padding-left:20px}
+.security-page .mono{font-size:11px;color:var(--muted,#9baec6);line-height:1.8}
+.security-page .mono a{color:var(--blue,#91baff)}
+@media(max-width:600px){.security-page{padding:17px;margin:18px 0}.security-form{padding:14px}}
