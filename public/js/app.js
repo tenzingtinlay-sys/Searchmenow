@@ -43,7 +43,7 @@ const KIND_ROUTE = { deep: 'deep-search', social: 'social-search', people: 'peop
 const historyHref = (h) => { const r = KIND_ROUTE[h.kind]; return `/dashboard/${r}${r.includes('?') ? '' : '?'}q=${encodeURIComponent(h.query)}`; };
 
 // Runs a search request; handles auth and credit errors uniformly.
-async async function searchFetch(url) {
+async function searchFetch(url) {
   const r = await fetch(url);
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `Error ${r.status}`);
   return r;
@@ -208,7 +208,7 @@ function planCards(current) {
     <div class="price">$${p.price}<small>${p.price ? ' / month' : ''}</small></div>
     <span>${perDay(p.daily)}</span>
     <ul class="feat">${feats[id].map((f) => `<li>${icon('check', 14)}${f}</li>`).join('')}</ul>
-    ${current === undefined ? `<a class="btn ${id === 'pro' ? 'btn-primary' : 'btn-secondary'}" href="/deep-search">${p.price ? 'Get ' + p.name : 'Start free'}</a>`
+    ${current === undefined ? `<a class="btn ${id === 'pro' ? 'btn-primary' : 'btn-secondary'}" href="/deep-search">${p.price ? 'Explore search tools' : 'Start searching'}</a>`
       : `<button class="btn ${current === id ? 'btn-secondary' : 'btn-primary'}" data-plan="${id}" ${current === id ? 'disabled' : ''}>${current === id ? 'Current plan' : id === 'free' ? 'Downgrade' : 'Upgrade'}</button>`}
   </div>`).join('')}</div>`;
 }
