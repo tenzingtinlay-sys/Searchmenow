@@ -618,7 +618,8 @@ curl -H "X-API-Key: YOUR_KEY" "${base}/api/v1/breach?email=you@example.com"</pre
     const k = localStorage.getItem('smn_key'), out = $('tout'); out.hidden = false;
     if (!k) return (out.textContent = 'Create a key first.');
     const ep = $('te').value; $('tb').disabled = true; out.textContent = 'Loading…';
-    if (ep === 'password') { out.textContent = 'For privacy, password checks use POST /api/public/password-check and never place the password in a URL. Use the Password exposure page instead.'; $('tb').disabled = false; return; }\n    const r = await fetch(`/api/v1/${ep}?${params[ep][0]}=${encodeURIComponent($('tq').value)}`, { headers: { 'X-API-Key': k } });
+    if (ep === 'password') { out.textContent = 'For privacy, password checks use POST /api/public/password-check and never place the password in a URL. Use the Password exposure page instead.'; $('tb').disabled = false; return; }
+    const r = await fetch(`/api/v1/${ep}?${params[ep][0]}=${encodeURIComponent($('tq').value)}`, { headers: { 'X-API-Key': k } });
     out.textContent = `HTTP ${r.status}\n` + JSON.stringify(await r.json(), null, 2);
     if ($('tb')) { $('tb').disabled = false; showKey(k); }
   };
