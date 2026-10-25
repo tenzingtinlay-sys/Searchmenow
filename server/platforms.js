@@ -56,4 +56,9 @@ module.exports = [
   { name: 'Truth Social', url: 'https://truthsocial.com/@{u}', check: 'status' },
   { name: 'Lemmy.world', url: 'https://lemmy.world/u/{u}', check: 'status' },
   { name: 'Pixelfed.social', url: 'https://pixelfed.social/{u}', check: 'status' },
+  { name: 'Reddit', url: 'https://www.reddit.com/user/{u}/about.json', link: 'https://www.reddit.com/user/{u}', check: 'status' },
+  { name: 'Telegram', url: 'https://t.me/{u}', check: 'body-present', marker: 'tgme_page_title' },
+  { name: 'Twitch', url: 'https://www.twitch.tv/{u}', check: 'body-present', marker: '"isLiveBroadcast"' },
+  { name: 'Bluesky', url: 'https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor={u}.bsky.social', link: 'https://bsky.app/profile/{u}.bsky.social', check: 'status' },
+  { name: 'Mastodon.social', url: 'https://mastodon.social/@{u}', check: 'status' },
 ];
