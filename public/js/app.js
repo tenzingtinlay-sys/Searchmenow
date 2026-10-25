@@ -540,55 +540,100 @@ function breach() {
 function passwordCheck() {
   view.innerHTML = `<div class="security-page">
     <div class="security-heading"><p class="eyebrow">ACCOUNT SECURITY</p><h1>Password &amp; account exposure</h1>
-    <p class="sub">Check a password against Have I Been Pwned's Pwned Passwords corpus. Optionally check a login email for known breach records or validate a phone number. These are separate checks; a phone lookup does not establish that a phone number was breached.</p></div>
+    <p class="sub">Email breach records check automatically. Phone numbers can be validated, but available public sources do not provide a reliable phone-to-breach lookup. To check password exposure, enter a password you already know. We do not retrieve or display passwords linked to an email or phone number.</p></div>
     <form class="security-form" id="pf">
-      <label for="account-id">Login email or phone number <span>(optional)</span></label>
-      <input id="account-id" type="text" autocomplete="off" inputmode="email" maxlength="254" placeholder="name@example.com or +14155552671" aria-label="Login email or phone number">
-      <p class="mono">Email checks search breach records. Phone checks return available validation and region metadata only. Enter only an account identifier you are authorized to check.</p>
-      <label for="pw">Password to check</label>
-      <input id="pw" type="password" autocomplete="new-password" placeholder="Enter a password to check (optional if checking email or phone)" maxlength="1024" aria-label="Password to check">
-      <button class="btn btn-primary" id="pwb" type="submit">${icon('shield')} Check exposure</button>
+      <label for="account-id">Email address or phone number <span>(automatic check)</span></label>
+      <input id="account-id" type="text" autocomplete="off" inputmode="email" maxlength="254" placeholder="name@example.com or +14155552671" aria-label="Email address or phone number">
+      <p class="mono">A complete email address triggers an automatic known-breach check. Phone numbers receive validation/region metadata only—not a password or confirmed breach result. Check only identifiers you are authorized to use.</p>
+      <div id="account-status" class="security-results" aria-live="polite"></div>
+      <label for="pw">Check a password you know <span>(optional)</span></label>
+      <input id="pw" type="password" autocomplete="new-password" placeholder="Enter a password to check" maxlength="1024" aria-label="Password to check">
+      <button class="btn btn-primary" id="pwb" type="submit">${icon('shield')} Check entered password</button>
     </form>
-    <p class="mono">Privacy: the browser sends the password to Searchmenow over HTTPS. Searchmenow hashes it and sends only the first five SHA-1 characters upstream. The full password is not sent to Have I Been Pwned and is not stored by this feature.</p>
-    <p class="mono">Do not enter a password currently used for a sensitive account. A positive match means it appeared in exposure data; it does not prove your account was accessed. Never reuse an exposed password.</p>
+    <p class="mono">Privacy: Searchmenow hashes the entered password and sends only the first five SHA-1 characters upstream. The full password is not sent to Have I Been Pwned and is not stored by this feature.</p>
+    <p class="mono">A positive match means the entered password appeared in exposure data; it does not prove your account was accessed. Never reuse an exposed password.</p>
     <div id="pwout" class="security-results" aria-live="polite"></div>
-    <p class="mono">Password data source: <a href="https://haveibeenpwned.com/Passwords" target="_blank" rel="noopener noreferrer">Have I Been Pwned — Pwned Passwords</a>.</p>
+    <p class="mono">Sources: <a href="https://haveibeenpwned.com/Passwords" target="_blank" rel="noopener noreferrer">Have I Been Pwned — Pwned Passwords</a> and available email breach records.</p>
   </div>`;
+  const accountInput = $('account-id'), accountStatus = $('account-status');
+  let accountTimer = null, accountRequest = 0;
+  const accountValue = () => accountInput.value.trim();
+  const classifyAccount = (value) => {
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+    const digits = value.replace(/\D/g, '');
+    const isPhone = !isEmail && digits.length >= 7 && digits.length <= 15 && /^[+\d\s().-]+$/.test(value);
+    return { isEmail, isPhone };
+  };
+  const showBreaches = (data) => {
+    const breaches = Array.isArray(data.breaches) ? data.breaches : [];
+    if (!breaches.length) { accountStatus.innerHTML = ''; return; }
+    accountStatus.innerHTML = '<div class="notice err"><b>Email found in breach records</b><p>' +
+      breaches.length + ' breach record(s) reported by ' + esc(data.source || 'the breach source') + '.</p><ul>' +
+      breaches.slice(0, 20).map(b => '<li><b>' + esc(b.name || b.domain || 'Reported breach') + '</b>' +
+      (b.date ? ' — ' + esc(b.date) : '') +
+      (Array.isArray(b.data) && b.data.length ? ' · exposed data types: ' + esc(b.data.join(', ')) : '') +
+      '</li>').join('') + '</ul><p>These records list exposed data types; they do not reveal account passwords.</p></div>';
+  };
+  const checkAccount = async () => {
+    const value = accountValue(), requestId = ++accountRequest;
+    const { isEmail, isPhone } = classifyAccount(value);
+    if (!value || (!isEmail && !isPhone)) { accountStatus.innerHTML = ''; return; }
+    accountStatus.innerHTML = '<div class="stats"><span class="stream-cursor"></span><span>' +
+      (isEmail ? 'Checking known email breach records…' : 'Checking phone number format…') + '</span></div>';
+    try {
+      if (isEmail) {
+        const r = await fetch('/api/public/breach-search?email=' + encodeURIComponent(value), { headers: { Accept: 'application/json' } });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok || d.error) throw new Error(d.error || 'Email breach check failed.');
+        if (requestId !== accountRequest || accountValue() !== value) return;
+        showBreaches(d);
+      } else {
+        const r = await fetch('/api/public/lookup/phone?number=' + encodeURIComponent(value), { headers: { Accept: 'application/json' } });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok || d.error) throw new Error(d.error || 'Phone lookup failed.');
+        if (requestId !== accountRequest || accountValue() !== value) return;
+        accountStatus.innerHTML = '<div class="notice"><b>Phone validation completed</b><p>Validation: ' +
+          (d.valid ? 'valid' : 'not confirmed') + ' · Country: ' + esc(d.country || 'Unknown') +
+          (d.lineType ? ' · Line type: ' + esc(d.lineType) : '') +
+          '</p><p>This is validation metadata, not evidence of a breach. Passwords cannot be retrieved from a phone number.</p></div>';
+      }
+    } catch (err) {
+      if (requestId === accountRequest && accountValue() === value) accountStatus.innerHTML = errBox(err.message || 'Account check unavailable. Try again later.');
+    }
+  };
+  accountInput.addEventListener('input', () => {
+    clearTimeout(accountTimer);
+    ++accountRequest;
+    const value = accountValue(), { isEmail, isPhone } = classifyAccount(value);
+    if (!value || (!isEmail && !isPhone)) { accountStatus.innerHTML = ''; return; }
+    accountStatus.innerHTML = '<div class="stats"><span class="stream-cursor"></span><span>Preparing automatic check…</span></div>';
+    accountTimer = setTimeout(checkAccount, 650);
+  });
+  accountInput.addEventListener('change', () => {
+    clearTimeout(accountTimer);
+    const { isEmail, isPhone } = classifyAccount(accountValue());
+    if (isEmail || isPhone) checkAccount();
+  });
   $('pf').onsubmit = async (e) => {
     e.preventDefault();
-    const password = $('pw').value, account = $('account-id').value.trim(), out = $('pwout'), button = $('pwb');
-    if (!password && !account) { out.innerHTML = errBox('Enter a password, login email address, or phone number to check.'); return; }
-    const isEmail = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(account);
-    const digits = account.replace(/\\D/g, '');
-    const isPhone = !isEmail && digits.length >= 7 && digits.length <= 15 && /^[+\\d\\s().-]+$/.test(account);
-    if (account && !isEmail && !isPhone) { out.innerHTML = errBox('Enter a valid email address or phone number with country code, or leave this field blank.'); return; }
+    const password = $('pw').value, out = $('pwout'), button = $('pwb');
+    if (!password) { out.innerHTML = errBox('Enter a password you know to check its exposure. Email and phone checks run automatically above.'); return; }
     button.disabled = true;
-    out.innerHTML = '<div class="stats"><span class="stream-cursor"></span><span>Checking password and selected account identifier…</span></div>';
-    const panels = [];
+    out.innerHTML = '<div class="stats"><span class="stream-cursor"></span><span>Checking entered password exposure…</span></div>';
     try {
-      const jobs = [];
-      if (password) jobs.push(fetch('/api/public/password-check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }) }).then(async r => { const d=await r.json().catch(()=>({})); if(!r.ok||d.error) throw Error(d.error||'Password check failed.'); return {kind:'password',data:d}; }));
-      if (isEmail) jobs.push(fetch('/api/public/breach-search?email='+encodeURIComponent(account), {headers:{Accept:'application/json'}}).then(async r=>{const d=await r.json().catch(()=>({}));if(!r.ok||d.error)throw Error(d.error||'Email breach check failed.');return {kind:'email',data:d};}));
-      if (isPhone) jobs.push(fetch('/api/public/lookup/phone?number='+encodeURIComponent(account), {headers:{Accept:'application/json'}}).then(async r=>{const d=await r.json().catch(()=>({}));if(!r.ok||d.error)throw Error(d.error||'Phone lookup failed.');return {kind:'phone',data:d};}));
-      const results = await Promise.allSettled(jobs);
-      const passwordResult=results.find(x=>x.status==='fulfilled'&&x.value.kind==='password');
-      if(passwordResult){const d=passwordResult.value.data;if(d.pwned)panels.push('<div class="notice err"><b>Password exposure match found</b><p>Observed '+Number(d.count).toLocaleString()+' times in the source corpus. Do not use it; change it anywhere it is used and replace reused passwords.</p></div>');}
-      const emailResult=results.find(x=>x.status==='fulfilled'&&x.value.kind==='email');
-      if(emailResult){const d=emailResult.value.data;const breaches=Array.isArray(d.breaches)?d.breaches:[];if(breaches.length)panels.push('<div class="notice err"><b>Email appears in breach records</b><p>'+breaches.length+' breach record(s) were returned by '+esc(d.source||'the breach source')+'.</p><ul>'+breaches.slice(0,20).map(b=>'<li><b>'+esc(b.name||b.domain||'Reported breach')+'</b>'+(b.date?' — '+esc(b.date):'')+(Array.isArray(b.data)&&b.data.length?' · exposed data: '+esc(b.data.join(', ')):'')+'</li>').join('')+'</ul></div>');}
-      const phoneResult=results.find(x=>x.status==='fulfilled'&&x.value.kind==='phone');
-      if(phoneResult){const d=phoneResult.value.data;panels.push('<div class="notice"><b>Phone lookup completed</b><p>Validation: '+(d.valid?'valid':'not confirmed')+' · Country: '+esc(d.country||'Unknown')+(d.lineType?' · Line type: '+esc(d.lineType):'')+'</p><p>This is not a phone-breach check and does not prove account ownership.</p></div>');}
-      const failed=results.filter(x=>x.status==='rejected');
-      if(passwordResult && !passwordResult.value.data.pwned) panels.push('<div class="notice"><b>No password match returned</b><p>No match was found in the checked Pwned Passwords corpus. This does not guarantee the password is safe.</p></div>');
-      if(isEmail && !emailResult) panels.push('<div class="notice err"><b>Email breach check unavailable</b><p>'+esc(failed.find(x=>x.reason)?.reason?.message||'Try again later.')+'</p></div>');
-      if(isPhone && !phoneResult) panels.push('<div class="notice err"><b>Phone lookup unavailable</b><p>'+esc(failed.find(x=>x.reason)?.reason?.message||'Try again later.')+'</p></div>');
-      if(password && !passwordResult) panels.push('<div class="notice err"><b>Password check unavailable</b><p>'+esc(failed[0]?.reason?.message||'Try again later.')+'</p></div>');
-      out.innerHTML=panels.join('');
+      const r = await fetch('/api/public/password-check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || d.error) throw new Error(d.error || 'Password check failed.');
+      out.innerHTML = d.pwned
+        ? '<div class="notice err"><b>Password exposure match found</b><p>This entered password was observed ' + Number(d.count).toLocaleString() + ' times. Change it anywhere it is used and replace reused passwords.</p></div>'
+        : '<div class="notice"><b>No password match returned</b><p>No match was found in the checked corpus. This does not guarantee the password is safe.</p></div>';
       $('pw').value = '';
-    } catch (err) { out.innerHTML = errBox(err.message); }
-    finally { if ($('pwb')) $('pwb').disabled = false; }
+    } catch (err) {
+      out.innerHTML = errBox(err.message || 'Password check unavailable. Try again later.');
+    } finally {
+      if ($('pwb')) $('pwb').disabled = false;
+    }
   };
-  const existing = new URLSearchParams(location.search).get('check');
-  if (existing === '1') $('pw').focus();
 }
 function lookup() {
   const kinds = { phone: ['number', '+14158586273'], email: ['email', 'name@example.com'], ip: ['ip', '8.8.8.8'] };
