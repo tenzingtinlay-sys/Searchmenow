@@ -28,6 +28,8 @@ jobs:
         run: |
           DATA_DIR=$(mktemp -d) PORT=3000 node server/index.js & sleep 2
           curl -fsS localhost:3000/api/health
+          curl -fsS localhost:3000/api/google/status | grep -q '"configured":false'
+          test "$(curl -s -o /tmp/google.json -w '%{http_code}' 'http://localhost:3000/api/public/google/youtube?q=smoke-test')" = "503"
           curl -fsS localhost:3000/ | grep -q Searchmenow && curl -fsS -o /dev/null localhost:3000/js/app.js
 
   deploy:
