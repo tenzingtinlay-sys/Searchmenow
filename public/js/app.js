@@ -553,7 +553,7 @@ function passwordCheck() {
     <p class="mono">Privacy: Searchmenow hashes the entered password and sends only the first five SHA-1 characters upstream. The full password is not sent to Have I Been Pwned and is not stored by this feature.</p>
     <p class="mono">A positive match means the entered password appeared in exposure data; it does not prove your account was accessed. Never reuse an exposed password.</p>
     <div id="pwout" class="security-results" aria-live="polite"></div>
-    <p class="mono">Sources: <a href="https://haveibeenpwned.com/Passwords" target="_blank" rel="noopener noreferrer">Have I Been Pwned — Pwned Passwords</a> and available email breach records.</p>
+    <p class="mono">Sources: <a href="https://haveibeenpwned.com/PwnedWebsites" target="_blank" rel="noopener noreferrer">Have I Been Pwned — breach directory</a> and available email breach records.</p>
   </div>`;
   const accountInput = $('account-id'), accountStatus = $('account-status');
   let accountTimer = null, accountRequest = 0;
@@ -564,15 +564,31 @@ function passwordCheck() {
     const isPhone = !isEmail && digits.length >= 7 && digits.length <= 15 && /^[+\d\s().-]+$/.test(value);
     return { isEmail, isPhone };
   };
+  const safeWebsiteUrl = (domain) => {
+    const host = String(domain || '').trim().replace(/^https?:\/\//i, '').split(/[/?#]/)[0].toLowerCase();
+    if (!/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(host)) return '';
+    return 'https://' + host;
+  };
   const showBreaches = (data) => {
     const breaches = Array.isArray(data.breaches) ? data.breaches : [];
-    if (!breaches.length) { accountStatus.innerHTML = ''; return; }
+    if (!breaches.length) {
+      accountStatus.innerHTML = '<div class="notice"><b>No matching breach records returned</b><p>The checked source returned no known breach records for this email. This does not guarantee that the account has never been exposed elsewhere.</p></div>';
+      return;
+    }
+    const sourceUrl = /have.?ibeen.?pwned/i.test(String(data.source || ''))
+      ? 'https://haveibeenpwned.com/PwnedWebsites'
+      : 'https://xposedornot.com/';
     accountStatus.innerHTML = '<div class="notice err"><b>Email found in breach records</b><p>' +
       breaches.length + ' breach record(s) reported by ' + esc(data.source || 'the breach source') + '.</p><ul>' +
-      breaches.slice(0, 20).map(b => '<li><b>' + esc(b.name || b.domain || 'Reported breach') + '</b>' +
-      (b.date ? ' — ' + esc(b.date) : '') +
-      (Array.isArray(b.data) && b.data.length ? ' · exposed data types: ' + esc(b.data.join(', ')) : '') +
-      '</li>').join('') + '</ul><p>These records list exposed data types; they do not reveal account passwords.</p></div>';
+      breaches.slice(0, 20).map(b => {
+        const name = esc(b.name || b.domain || 'Reported breach');
+        const website = safeWebsiteUrl(b.domain);
+        return '<li><b>' + name + '</b>' +
+          (b.date ? ' — ' + esc(b.date) : '') +
+          (Array.isArray(b.data) && b.data.length ? '<br><span>Exposed data types: ' + esc(b.data.join(', ')) + '</span>' : '') +
+          (website ? '<br><a href="' + esc(website) + '" target="_blank" rel="noopener noreferrer">Visit affected website</a> <span>— use its official security or account-recovery page to secure your account.</span>' : '') +
+          '</li>';
+      }).join('') + '</ul><p><a href="' + sourceUrl + '" target="_blank" rel="noopener noreferrer">Open breach source directory</a></p><p>These records describe exposed data types; they do not reveal account passwords. A listed website is the affected organisation’s domain, not necessarily a dedicated recovery page. Verify the domain before signing in, and never enter your password on an unfamiliar page.</p></div>';
   };
   const checkAccount = async () => {
     const value = accountValue(), requestId = ++accountRequest;
