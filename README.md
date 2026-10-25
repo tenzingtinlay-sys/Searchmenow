@@ -30,6 +30,14 @@ One-time setup:
    `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`.
 4. In Vercel → Project → Settings → Environment Variables, add any optional keys from `.env.example`.
 
+### Google Cloud search (optional)
+Set `GOOGLE_API_KEY` as a **server-side environment variable** in Vercel for Production and Preview. Enable **YouTube Data API v3** and **Places API (New)** in the Google Cloud project first. The server exposes:
+- `GET /api/google/status` — reports whether a key is configured (does not validate it).
+- `GET /api/public/google/youtube?q=...` — public YouTube video/channel search.
+- `GET /api/public/google/places?q=...` — Google Places text search, including map URLs and coordinates.
+
+The key is never returned to the browser. These endpoints have per-IP rate limits, but they are public endpoints and still consume your Google quota. Restrict the key to only the APIs used; review Google Cloud usage and billing before production. If you also want CI to run authenticated provider tests, add `GOOGLE_API_KEY` under GitHub → Settings → Secrets and variables → Actions; the current deployment workflow does not need the key to deploy because Vercel stores runtime environment variables separately. An API key alone does not enable Google Sign-In or access private user data; those require OAuth credentials.
+
 Note: on Vercel the file store lives in `/tmp`, which is temporary. Accounts and API keys can reset
 when Vercel recycles the function. For lasting data, connect a database (e.g. Vercel Postgres / Upstash).
 
