@@ -9,6 +9,7 @@ const store = require('./store');
 const { deepSearch } = require('./deep');
 const osintTools = require('./osint-tools');
 const { runResearch, SOURCES: RESEARCH_SOURCES } = require('./research-engine');
+const { mediaSearch } = require('./media-search');
 
 // ---- Free public API keys (stored in data/api-keys.json) ----
 const DATA_DIR = process.env.DATA_DIR || (process.env.VERCEL ? '/tmp/searchmenow' : path.join(__dirname, '..', 'data'));
@@ -375,6 +376,13 @@ async function handler(req, res) {
       const data = await runResearch(query, { type: searchParams.get('type') || 'auto', context: searchParams.get('context') || '', sources: requested.length ? requested : undefined });
       return json(res, 200, data);
     } catch (e) { return json(res, e.statusCode || 502, { error: e.message || 'Research failed.' }); }
+  }
+  if (pathname === '/api/public/media-search' && req.method === 'GET') {
+    if (limited('media:' + ipOf(req), 12, 60 * 1000)) return json(res, 429, { error: 'Too many media searches. Wait a minute and try again.' });
+    const q = (searchParams.get('q') || '').trim();
+    if (q.length < 2 || q.length > 180) return json(res, 400, { error: 'Enter a query between 2 and 180 characters.' });
+    if (store.isOptedOut(q)) return json(res, 451, { error: 'This identifier has been removed from search results at the owner’s request.' });
+    return mediaSearch(req, res, searchParams);
   }
   if (pathname === '/api/public/osint-tools') return json(res, 200, { source: 'Searchmenow curated directory', upstream: 'https://osintframework.com/', license: 'MIT project inspiration; see upstream attribution', categories: osintTools });
   if (pathname === '/api/health') return json(res, 200, { ok: true });
