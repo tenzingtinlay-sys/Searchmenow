@@ -134,59 +134,26 @@ function siteFooter() {
 function page(inner) { app.innerHTML = siteNav() + inner + siteFooter(); }
 
 function landing() {
-  page(`<section class="hero wrap">
-    <p class="lbl">Free public-source search</p>
-    <h1>Search people, usernames, companies and education institutions</h1>
-    <p>Searchmenow is a free search platform for discovering public profiles, company-related information, schools, universities and other open-source information.</p>
-    <form class="search" id="lf">
-      <select id="lkind" aria-label="Search type" style="max-width:260px">
-        <option value="auto">Auto-detect search type</option><option value="deep">Keyword / website / public-source deep search</option>
-        <option value="social">Username / social profiles</option><option value="people">Person name / public profiles</option>
-        <option value="company">Company name</option><option value="education">Education institution</option><option value="school">School name</option><option value="university">University name</option><option value="youtube-email">YouTube channel / publicly listed email</option>
-        <option value="breach">Email breach exposure</option><option value="password">Password exposure check (private range lookup)</option><option value="phone">Phone / mobile number</option>
-        <option value="email">Email validation</option><option value="ip">IP address / network</option>
-      </select>
-      <input id="lq" placeholder="username, person, company, school, university, email or keyword" required aria-label="Search query">
-      <button class="btn btn-primary">${icon('search')} Search</button>
-    </form>
-    <p class="mono">Free public search · no account or sign-in required · public-source results</p>
-    <p class="mono" style="margin-top:8px">For your safety, do not enter Aadhaar, PAN, passport or other government ID numbers. Common Aadhaar, PAN and passport formats are blocked; this service is not for government-ID lookups.</p>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px"><a class="btn btn-secondary" href="/deep-search">${icon('graph')} Deep search</a><a class="btn btn-secondary" href="/breach-search">${icon('shield')} Check breach exposure</a></div>
-    <div class="kpis"><div><b>${config.platforms}</b><span>platforms</span></div><div><b>${config.peopleSources}</b><span>people sources</span></div><div><b>11+</b><span>search options</span></div><div><b>Live</b><span>no stale cache</span></div></div>
-  </section>
-  <section class="site-section"><div class="wrap">
-    <h2>Search tools</h2><p class="sub">Choose a search type above or open a tool directly. Searches use public sources and available validation services.</p>
-    <div class="cards">
-      ${[['graph', 'Deep search', 'Start from one clue. We follow linked accounts, websites and emails and score each match.'], ['search', 'Social search', `Check a username on ${config.platforms} platforms. Results stream in as each site answers.`], ['users', 'People search', 'Find a full name on GitHub, Wikipedia, ORCID, Mastodon and Bluesky.'], ['database', 'Email breach search', 'See which known data breaches include an email address.'], ['shield', 'Password exposure', 'Check a password against known exposure counts without sending the full password to the upstream service.'], ['phone', 'Phone, email & IP', 'Validate numbers and mailboxes, and locate IP addresses.'], ['code', 'Free API', 'Run every search from your own website or app with an API key.'], ['shield', 'Opt-out', 'Anyone can remove their identifier from results.']]
-        .map(([i, t, d]) => `<div class="card"><div class="ic">${icon(i)} ${t}</div><span>${d}</span></div>`).join('')}
-    </div></div></section>
-  <section class="site-section"><div class="wrap" style="text-align:center">
-    <h2>Search without an account</h2><p class="sub">Choose a search tool and get started immediately.</p>
-    <a class="btn btn-primary" href="/deep-search">${icon('search')} Start deep search ${icon('arrow')}</a>
-  </div></section>`);
-  $('lkind').onchange = () => { $('lq').type = $('lkind').value === 'password' ? 'password' : 'text'; $('lq').placeholder = $('lkind').value === 'password' ? 'Enter password to check (not placed in URL)' : 'username, person, company, school, university, email or keyword'; };
-  $('lf').onsubmit = (e) => {
-    e.preventDefault();
-    const q = $('lq').value.trim(), kind = $('lkind').value;
-    let route = kind === 'auto'
-      ? (/^(\d{1,3}\.){3}\d{1,3}$/.test(q) || (q.includes(':') && /^[0-9a-f:]+$/i.test(q)) ? 'ip' : /^\+?[\d\s().-]{7,20}$/.test(q) ? 'phone' : q.includes('@') ? 'breach' : /\s/.test(q) ? 'deep' : 'social')
-      : kind;
-    const organizationModes = {
-      company: { name: q, keywords: 'company, employer, organization, business' },
-      education: { name: q, keywords: 'education, school, college, university, institution' },
-      school: { name: q, keywords: 'school, education, student, alumni' },
-      university: { name: q, keywords: 'university, college, education, alumni, faculty' },
-      'youtube-email': { name: '', keywords: 'YouTube channel, creator, channel contact email, business email, publicly listed email' },
-    };
-    if (organizationModes[route]) {
-      const p = new URLSearchParams({ q, name: organizationModes[route].name, keywords: organizationModes[route].keywords });
-      return go('/deep-search?' + p.toString());
-    }
-    if (route === 'password') return go('/password-check'); // Never put passwords in URLs, query strings or browser history.
-    const path = { deep:'/deep-search', social:'/social-search', people:'/people-search', breach:'/breach-search', password:'/password-check', phone:'/lookup?type=phone', email:'/lookup?type=email', ip:'/lookup?type=ip' }[route] || '/deep-search';
-    const sep = path.includes('?') ? '&' : '?';
-    go(path + sep + 'q=' + encodeURIComponent(q));
-  };
+ page(`<section class="hero wrap profile-search-hero"><p class="lbl">Public profile discovery</p><h1>Find public profiles across the web</h1><p>Search public, permitted sources and refine by profile type. Select useful source results for review.</p>
+ <div class="unified-search"><aside class="search-refine"><label class="field"><span class="lbl">Search query</span><input id="lq" placeholder="Name, username or public profile URL" aria-label="Search query"></label>
+ <div class="field"><span class="lbl">Category</span><div class="category-tabs" role="tablist"><button type="button" class="category-tab active" data-category="people">People</button><button type="button" class="category-tab" data-category="social">Social profiles</button><button type="button" class="category-tab" data-category="reviews">Google reviews</button><button type="button" class="category-tab" data-category="images">Images</button><button type="button" class="category-tab" data-category="web">Public web</button></div></div>
+ <div class="field"><span class="lbl">Refine search</span><div id="search-subtabs" class="search-subtabs"></div></div><div class="field"><span class="lbl">Sources</span><div id="search-providers" class="search-providers"></div></div>
+ <label class="privacy-toggle"><input id="public-only" type="checkbox" checked> Public or authorized sources only</label><div class="search-actions"><button class="btn btn-primary" id="profile-search-btn" type="button">${icon('search')} Search</button><button class="btn btn-secondary" id="profile-reset-btn" type="button">Reset</button></div><p class="mono privacy-note">No private-account access or login bypass. Provider availability varies.</p></aside>
+ <section class="match-results" aria-live="polite"><div class="results-head"><div><p class="lbl">Match explorer</p><h2 id="results-title">Candidate matches</h2><p id="results-caption">Enter a query and choose a category.</p></div><span class="results-count" id="results-count">0 selected</span></div><div id="candidate-results" class="candidate-results"><div class="results-empty"><div class="empty-glyph">${icon('search')}</div><strong>Your results will appear here</strong><span>Search opens relevant public sources. Images appear only when a provider returns them.</span></div></div><div class="results-foot"><span id="selection-status">No candidates selected</span><button type="button" class="btn btn-secondary btn-sm" id="open-selected-btn" disabled>Open selected sources</button></div></section></div>
+ <div class="kpis"><div><b>${config.platforms}</b><span>platforms</span></div><div><b>${config.peopleSources}</b><span>people sources</span></div><div><b>Public</b><span>source-first search</span></div><div><b>Opt-out</b><span>privacy controls</span></div></div></section>
+ <section class="site-section"><div class="wrap"><h2>Explore public-source tools</h2><p class="sub">Some platforms do not permit general profile-photo search. Only permitted public results are linked.</p><div class="cards">${[['users','People search','Search public profile directories.','/people-search'],['search','Social usernames','Check supported public usernames.','/social-search'],['graph','Deep search','Follow public web evidence.','/deep-search'],['shield','Privacy and opt-out','Request removal from Searchmenow results.','/opt-out']].map(([i,t,d,u])=>`<a class="card" href="${u}"><div class="ic">${icon(i)} ${t}</div><span>${d}</span></a>`).join('')}</div></div></section>`);
+ const cats={
+ people:{sub:[['all','All public profiles'],['professional','Professional profiles'],['community','Community & developer'],['education','Academic & publications']],sources:[['people','People search'],['deep','Public web'],['social','Social usernames']]},
+ social:{sub:[['all','All social platforms'],['instagram','Instagram'],['facebook','Facebook'],['linkedin','LinkedIn'],['x','X / Twitter'],['youtube','YouTube'],['whatsapp','WhatsApp'],['github','GitHub']],sources:[['social','Supported social search'],['deep','Public web']]},
+ reviews:{sub:[['all','All review results'],['google','Google Maps / reviews'],['business','Business profiles'],['photos','Public review photos']],sources:[['deep','Public web search']]},
+ images:{sub:[['all','All public images'],['profile','Profile pictures'],['business','Business photos'],['reverse','Reverse image tools']],sources:[['deep','Public web search']]},
+ web:{sub:[['all','All public web'],['news','News & articles'],['sites','Websites'],['documents','Public documents']],sources:[['deep','Deep search'],['people','People search'],['social','Social usernames']]}
+ };
+ let cat='people',sub='all',links=[],selected=new Set();
+ const renderFilters=()=>{const x=cats[cat];$('search-subtabs').innerHTML=x.sub.map(([id,n])=>`<button type="button" class="subtab ${sub===id?'active':''}" data-subtab="${esc(id)}">${esc(n)}</button>`).join('');$('search-providers').innerHTML=x.sources.map(([id,n])=>`<label class="provider-option"><input type="checkbox" value="${id}" checked> ${n}</label>`).join('');document.querySelectorAll('.category-tab').forEach(b=>b.classList.toggle('active',b.dataset.category===cat));};
+ const updateSelection=()=>{$('results-count').textContent=selected.size+' selected';$('selection-status').textContent=selected.size?selected.size+' source(s) selected':'No candidates selected';$('open-selected-btn').disabled=!selected.size;};
+ const run=()=>{const q=$('lq').value.trim();if(!q){$('lq').focus();toast('Enter a name, username or public profile URL.');return;}if(!$('public-only').checked){$('public-only').checked=true;toast('Public/authorized-source protection must remain enabled.');return;}const cfg=cats[cat],chosen=[...$('search-providers').querySelectorAll('input:checked')].map(x=>x.value);if(!chosen.length){toast('Select at least one source.');return;}const label=cfg.sub.find(x=>x[0]===sub)?.[1]||'All results',qv=encodeURIComponent(q),google='https://www.google.com/search?q='+qv;links=chosen.map(id=>({label:cfg.sources.find(x=>x[0]===id)?.[1]||id,url:google+'+'+encodeURIComponent(label)}));if(cat==='images')links.unshift({label:'Public image results',url:'https://www.google.com/search?tbm=isch&q='+qv+'+profile'});if(cat==='reviews')links.unshift({label:'Google Maps & reviews',url:google+'+Google+reviews'});if(cat==='social'&&sub!=='all'){const domains={instagram:'instagram.com',facebook:'facebook.com',linkedin:'linkedin.com',x:'x.com',youtube:'youtube.com',whatsapp:'whatsapp.com',github:'github.com'};if(domains[sub])links.unshift({label:sub+' public results',url:google+'+site%3A'+domains[sub]});}selected.clear();$('results-title').textContent='Sources for “'+q+'”';$('results-caption').textContent=label+' · '+cat+' · external public-source links';$('candidate-results').innerHTML=links.map((x,i)=>`<article class="candidate-card"><label class="candidate-pick"><input class="candidate-select" type="checkbox" value="${i}" aria-label="Select ${esc(x.label)}"><span class="candidate-avatar">${icon(cat==='images'?'image':cat==='reviews'?'star':'users')}</span></label><div class="candidate-detail"><strong>${esc(x.label)}</strong><span>Search public results for “${esc(q)}”</span><small>External source · not pre-fetched</small></div><a class="candidate-open" href="${x.url}" target="_blank" rel="noopener noreferrer">Open results ↗</a></article>`).join('')+'<p class="results-disclaimer">These are source links, not retrieved matches. Real profile photos and Google review images require a connected, permitted provider. No results are fabricated.</p>';document.querySelectorAll('.candidate-select').forEach(b=>b.addEventListener('change',()=>{if(b.checked)selected.add(b.value);else selected.delete(b.value);updateSelection();}));updateSelection();};
+ document.querySelectorAll('.category-tab').forEach(b=>b.addEventListener('click',()=>{cat=b.dataset.category;sub='all';renderFilters();}));$('search-subtabs').addEventListener('click',e=>{const b=e.target.closest('[data-subtab]');if(b){sub=b.dataset.subtab;renderFilters();}});$('profile-search-btn').addEventListener('click',run);$('lq').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();run();}});$('profile-reset-btn').addEventListener('click',()=>{$('lq').value='';cat='people';sub='all';selected.clear();links=[];$('results-title').textContent='Candidate matches';$('results-caption').textContent='Enter a query and choose a category.';$('candidate-results').innerHTML='<div class="results-empty"><strong>Your results will appear here</strong><span>Search opens public-source links; real images require a connected provider.</span></div>';renderFilters();updateSelection();});$('open-selected-btn').addEventListener('click',()=>[...selected].slice(0,5).forEach(i=>{if(links[Number(i)])window.open(links[Number(i)].url,'_blank','noopener,noreferrer');}));renderFilters();updateSelection();
 }
 
 function auth(mode) {
