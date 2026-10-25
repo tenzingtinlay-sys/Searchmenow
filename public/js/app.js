@@ -26,7 +26,7 @@ async function loadMe() {
   const d = r.ok ? await r.json() : {}; me = d.user || null; history_ = d.history || [];
 }
 function go(url, replace) { history[replace ? 'replaceState' : 'pushState'](null, '', url); render(); }
-const brand = () => `<a class="brand" href="${me ? '/dashboard' : '/'}" aria-label="Searchmenow home">${LOGO}<span>searchme<span class="dim">now</span></span></a>`;
+const brand = () => `<a class="brand" href="/" aria-label="Searchmenow home">${LOGO}<span>searchme<span class="dim">now</span></span></a>`;
 const perDay = (n) => n ? `${n} searches per day` : 'Unlimited searches';
 const errBox = (m) => `<div class="notice err">${esc(m)}${/limit reached/i.test(m) ? ' <a href="/dashboard/billing">Upgrade</a>' : ''}</div>`;
 
@@ -43,11 +43,9 @@ const KIND_ROUTE = { deep: 'deep-search', social: 'social-search', people: 'peop
 const historyHref = (h) => { const r = KIND_ROUTE[h.kind]; return `/dashboard/${r}${r.includes('?') ? '' : '?'}q=${encodeURIComponent(h.query)}`; };
 
 // Runs a search request; handles auth and credit errors uniformly.
-async function searchFetch(url) {
+async async function searchFetch(url) {
   const r = await fetch(url);
-  if (r.status === 401) { go('/login?next=' + encodeURIComponent(location.pathname + location.search)); throw new Error('Sign in to search.'); }
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `Error ${r.status}`);
-  loadMe().then(updateReadout);
   return r;
 }
 async function stream(url, onItem) {
@@ -67,7 +65,7 @@ function autorun() {
 }
 
 // ---------- router ----------
-const publicRoutes = { '/': landing, '/deep-search': () => publicSearchPage(deep), '/breach-search': () => publicSearchPage(breach), '/login': () => auth('login'), '/signup': () => auth('signup'), '/pricing': pricing, '/contact': contact, '/opt-out': optOut, '/terms': terms, '/privacy': privacy };
+const publicRoutes = { '/': landing, '/deep-search': () => publicSearchPage(deep), '/breach-search': () => publicSearchPage(breach), '/social-search': () => publicSearchPage(social), '/people-search': () => publicSearchPage(people), '/lookup': () => publicSearchPage(lookup), '/login': landing, '/signup': landing, '/pricing': pricing, '/contact': contact, '/opt-out': optOut, '/terms': terms, '/privacy': privacy };
 const dashRoutes = {
   '/dashboard': ['home', 'Home', home],
   '/dashboard/deep-search': ['deep', 'deep-search', deep],
@@ -83,12 +81,21 @@ const dashRoutes = {
 function render() {
   const p = location.pathname.replace(/(.)\/$/, '$1');
   window.scrollTo(0, 0);
-  if (p === '/deep-search' || p === '/breach-search') {
+  const publicSearchPages = { '/deep-search': deep, '/breach-search': breach, '/social-search': social, '/people-search': people, '/lookup': lookup };
+  if (publicSearchPages[p]) {
     shellMounted = false;
     page('<div class="wrap" style="padding:40px 24px;min-height:60vh"><div id="public-search-view"></div></div>');
     view = $('public-search-view');
-    (p === '/deep-search' ? deep : breach)();
+    publicSearchPages[p]();
     return;
+  }
+  if (p.startsWith('/dashboard')) {
+    const legacy = {
+      '/dashboard': '/', '/dashboard/deep-search': '/deep-search', '/dashboard/social-search': '/social-search',
+      '/dashboard/people-search': '/people-search', '/dashboard/breach-search': '/breach-search',
+      '/dashboard/lookup': '/lookup', '/dashboard/api': '/', '/dashboard/billing': '/', '/dashboard/settings': '/'
+    };
+    return go(legacy[p] || '/', true);
   }
   if (dashRoutes[p]) {
     if (!me) return go('/login?next=' + encodeURIComponent(location.pathname + location.search), true);
@@ -116,8 +123,7 @@ addEventListener('popstate', render);
 // ---------- public site ----------
 function siteNav() {
   return `<header class="site-nav">${brand()}<nav class="links">
-    <a href="/deep-search">Deep search</a><a href="/breach-search">Breach check</a><a href="/pricing">Pricing</a><a href="/contact">Contact</a>
-    ${me ? '<a class="btn btn-primary btn-sm" href="/dashboard">Dashboard</a>' : '<a href="/login">Sign in</a><a class="btn btn-primary btn-sm" href="/signup">Get started</a>'}
+    <a href="/deep-search">Deep search</a><a href="/social-search">Username</a><a href="/people-search">People / keywords</a><a href="/breach-search">Breach check</a><a href="/lookup">Phone / email / IP</a><a href="/pricing">Pricing</a><a href="/contact">Contact</a>
   </nav></header>`;
 }
 function siteFooter() {
@@ -132,22 +138,41 @@ function landing() {
     <p class="lbl">Live OSINT search</p>
     <h1>Search a username, email, name or phone across public sources</h1>
     <p>Searchmenow queries ${config.platforms}+ platforms and open data sources live, ranks matching public profiles and shows known breach exposure for an email.</p>
-    <form class="search" id="lf"><input id="lq" placeholder="username, name@example.com, Jane Smith, +14155550123" required aria-label="Search"><button class="btn btn-primary">${icon('search')} Search</button></form>
-    <p class="mono">Try it instantly · no sign-in required for Deep Search or Breach Check</p>
+    <form class="search" id="lf">
+      <select id="lkind" aria-label="Search type" style="max-width:260px">
+        <option value="auto">Auto-detect search type</option><option value="deep">Keyword, name, website or address clue</option>
+        <option value="social">Username / social profiles</option><option value="people">Person name / public keywords</option>
+        <option value="breach">Email breach exposure</option><option value="phone">Phone / mobile number</option>
+        <option value="email">Email validation</option><option value="ip">IP address / network</option>
+      </select>
+      <input id="lq" placeholder="username, email, name, keyword, phone, IP or website" required aria-label="Search query">
+      <button class="btn btn-primary">${icon('search')} Search</button>
+    </form>
+    <p class="mono">Free public searches · no account or sign-in required · rate limits apply</p>
+    <p class="mono" style="margin-top:8px">For your safety, do not enter Aadhaar, PAN, passport or other government ID numbers. This service does not search or store government ID numbers.</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px"><a class="btn btn-secondary" href="/deep-search">${icon('graph')} Deep search</a><a class="btn btn-secondary" href="/breach-search">${icon('shield')} Check breach exposure</a></div>
     <div class="kpis"><div><b>${config.platforms}</b><span>platforms</span></div><div><b>${config.peopleSources}</b><span>people sources</span></div><div><b>7</b><span>search types</span></div><div><b>Live</b><span>no stale cache</span></div></div>
   </section>
   <section class="site-section"><div class="wrap">
-    <h2>Everything in one dashboard</h2><p class="sub">Each search runs in real time against the source, so results reflect what is public right now.</p>
+    <h2>Search tools</h2><p class="sub">Choose a search type above or open a tool directly. Searches use public sources and available validation services.</p>
     <div class="cards">
       ${[['graph', 'Deep search', 'Start from one clue. We follow linked accounts, websites and emails and score each match.'], ['search', 'Social search', `Check a username on ${config.platforms} platforms. Results stream in as each site answers.`], ['users', 'People search', 'Find a full name on GitHub, Wikipedia, ORCID, Mastodon and Bluesky.'], ['database', 'Breach search', 'See which known data breaches include an email address.'], ['phone', 'Phone, email & IP', 'Validate numbers and mailboxes, and locate IP addresses.'], ['code', 'Free API', 'Run every search from your own website or app with an API key.'], ['shield', 'Opt-out', 'Anyone can remove their identifier from results.']]
         .map(([i, t, d]) => `<div class="card"><div class="ic">${icon(i)} ${t}</div><span>${d}</span></div>`).join('')}
     </div></div></section>
   <section class="site-section"><div class="wrap" style="text-align:center">
-    <h2>Start searching for free</h2><p class="sub">Create an account in seconds.</p>
-    <a class="btn btn-primary" href="${me ? '/dashboard' : '/signup'}">${me ? 'Open dashboard' : 'Create free account'} ${icon('arrow')}</a>
+    <h2>Search without an account</h2><p class="sub">Choose a search tool and get started immediately.</p>
+    <a class="btn btn-primary" href="/deep-search">${icon('search')} Start deep search ${icon('arrow')}</a>
   </div></section>`);
-  $('lf').onsubmit = (e) => { e.preventDefault(); const q = $('lq').value.trim(); go(q.includes('@') ? '/breach-search?q=' + encodeURIComponent(q) : '/deep-search?q=' + encodeURIComponent(q)); };
+  $('lf').onsubmit = (e) => {
+    e.preventDefault();
+    const q = $('lq').value.trim(), kind = $('lkind').value;
+    let route = kind === 'auto'
+      ? (/^(\\d{1,3}\\.){3}\\d{1,3}$/.test(q) || (q.includes(':') && /^[0-9a-f:]+$/i.test(q)) ? 'ip' : /^\\+?[\\d\\s().-]{7,20}$/.test(q) ? 'phone' : q.includes('@') ? 'breach' : /\\s/.test(q) ? 'deep' : 'social')
+      : kind;
+    const path = { deep:'/deep-search', social:'/social-search', people:'/people-search', breach:'/breach-search', phone:'/lookup?type=phone', email:'/lookup?type=email', ip:'/lookup?type=ip' }[route] || '/deep-search';
+    const sep = path.includes('?') ? '&' : '?';
+    go(path + sep + 'q=' + encodeURIComponent(q));
+  };
 }
 
 function auth(mode) {
@@ -394,7 +419,7 @@ function social() {
     out.innerHTML = `<div class="stats"><span class="stream-cursor"></span><span id="st">Checking 0/${config.platforms}</span><span id="fd">0 found</span></div><div class="results" id="rs"></div>`;
     const rows = []; let done = 0, found = 0;
     try {
-      await stream('/api/social-search?username=' + encodeURIComponent(u), (x) => {
+      await stream((location.pathname === '/social-search' ? '/api/public/social-search' : '/api/social-search') + '?username=' + encodeURIComponent(u), (x) => {
         rows.push(x); done++; if (x.status === 'found') found++;
         rows.sort((a, b) => (a.status === 'found' ? 0 : 1) - (b.status === 'found' ? 0 : 1) || a.platform.localeCompare(b.platform));
         $('st').textContent = `Checked ${done}/${config.platforms}`; $('fd').textContent = `${found} found` + (rows.some((r) => r.status === 'blocked') ? ` · ${rows.filter((r) => r.status === 'blocked').length} blocked` : '');
@@ -417,7 +442,7 @@ function people() {
     out.innerHTML = `<div class="stats"><span class="stream-cursor"></span><span id="st">Querying ${config.peopleSources} sources…</span></div><div id="groups" style="display:flex;flex-direction:column;gap:16px"></div>`;
     let done = 0, total = 0;
     try {
-      await stream('/api/people-search?name=' + encodeURIComponent(n), (g) => {
+      await stream((location.pathname === '/people-search' ? '/api/public/people-search' : '/api/people-search') + '?name=' + encodeURIComponent(n), (g) => {
         done++; total += g.results.length;
         $('st').textContent = `${done}/${config.peopleSources} sources · ${total} results`;
         const body = g.error ? '<div class="row"><span class="mono">Source unavailable right now</span><span class="pill error">error</span></div>'
@@ -455,7 +480,7 @@ function breach() {
 
 function lookup() {
   const kinds = { phone: ['number', '+14158586273'], email: ['email', 'name@example.com'], ip: ['ip', '8.8.8.8'] };
-  view.innerHTML = `<h1>Phone, email &amp; IP lookup</h1><p class="sub">Powered by ${config.apilayer ? 'APILayer (Numverify, Mailboxlayer, IP to Location)' : 'free sources. Add <code>APILAYER_API_KEY</code> for carrier, SMTP and richer data'}. 1 search credit.</p>
+  view.innerHTML = `<h1>Phone, email &amp; IP lookup</h1><p class="sub">Powered by ${config.apilayer ? 'APILayer (Numverify, Mailboxlayer, IP to Location)' : 'available free sources'}. No account required; public lookups are rate-limited. Phone lookups validate numbers and return available carrier/region metadata, not live tracking.</p>
     <form class="search" id="f"><select id="k" aria-label="Lookup type"><option value="phone">Phone</option><option value="email">Email</option><option value="ip">IP address</option></select>
     <input id="q" required aria-label="Value"><button class="btn btn-primary" id="b">${icon('search')} Look up</button></form><div id="out"></div>`;
   const sel = $('k'), qk = new URLSearchParams(location.search).get('type'); if (kinds[qk]) sel.value = qk;
@@ -468,7 +493,8 @@ function lookup() {
     history.replaceState(null, '', `?type=${sel.value}&q=${encodeURIComponent(q)}`);
     out.innerHTML = '<div class="stats"><span class="stream-cursor"></span><span>Looking up…</span></div>';
     try {
-      const d = await (await searchFetch(`/api/lookup/${sel.value}?${param}=${encodeURIComponent(q)}`)).json();
+      const apiBase = location.pathname === '/lookup' ? '/api/public/lookup/' : '/api/lookup/';
+      const d = await (await searchFetch(`${apiBase}${sel.value}?${param}=${encodeURIComponent(q)}`)).json();
       if (d.error) throw new Error(d.error);
       const { source, ...rest } = d;
       out.innerHTML = `<div class="stats"><span>Source: ${esc(source)}</span></div><div class="results">${Object.entries(rest).map(([k, v]) => `<div class="row"><span class="mono">${esc(label(k))}</span><span>${val(v)}</span></div>`).join('')}</div>`;
