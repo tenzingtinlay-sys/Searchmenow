@@ -53,11 +53,11 @@ function dedupe(items,q) {
 async function runResearch(input,opts={}) {
  const q=clean(input,180); if(q.length<2)throw Object.assign(Error('Enter at least 2 characters.'),{statusCode:400});
  if(/^\d{12}$/.test(q.replace(/[\s-]/g,''))||/^[A-Z]{5}\d{4}[A-Z]$/i.test(q)||/\b(aadhaar|aadhar|pan card|passport number|government id)\b/i.test(q))throw Object.assign(Error('Government ID numbers are not supported. Do not submit Aadhaar, PAN, passport or other sensitive ID numbers.'),{statusCode:400});
- const kind=classify(q,opts.type);
- if(['email','phone','ip'].includes(kind))return{query:q,type:kind,generatedAt:new Date().toISOString(),total:0,results:[],sourceStatus:[],notice:'Use the dedicated email, phone or IP lookup tool. This research endpoint does not fan personal identifiers out across unrelated sources.'};
+ const kind=classify(q,opts.type); const context=clean(opts.context,100); const sourceQuery=context ? q+' '+context : q;
+ if(['email','phone','ip'].includes(kind))return{query:q,context:context||undefined,type:kind,generatedAt:new Date().toISOString(),total:0,results:[],sourceStatus:[],notice:'Use the dedicated email, phone or IP lookup tool. This research endpoint does not fan personal identifiers out across unrelated sources.'};
  const chosen=SOURCES.filter(s=>s.kinds.includes(kind)&&(!opts.sources||opts.sources.includes(s.id)));
- const settled=await Promise.all(chosen.map(async s=>{const start=Date.now();try{const rows=await collectors[s.id](q,kind);return{id:s.id,name:s.name,status:'ok',count:rows.length,durationMs:Date.now()-start,rows};}catch(e){return{id:s.id,name:s.name,status:'unavailable',count:0,durationMs:Date.now()-start,error:String(e.message||'Source unavailable').slice(0,80),rows:[]};}}));
- const results=dedupe(settled.flatMap(s=>s.rows),q);
+ const settled=await Promise.all(chosen.map(async s=>{const start=Date.now();try{const rows=await collectors[s.id](sourceQuery,kind);return{id:s.id,name:s.name,status:'ok',count:rows.length,durationMs:Date.now()-start,rows};}catch(e){return{id:s.id,name:s.name,status:'unavailable',count:0,durationMs:Date.now()-start,error:String(e.message||'Source unavailable').slice(0,80),rows:[]};}}));
+ const results=dedupe(settled.flatMap(s=>s.rows),sourceQuery);
  return{query:q,type:kind,generatedAt:new Date().toISOString(),total:results.length,results,sourceStatus:settled.map(({rows,...s})=>s),ranking:{version:'SGRE-1.0',method:'Title match 34%, body match 24%, exact title 18%, source baseline 14%, completeness 6%, corroboration 4%',warning:'Scores rank search relevance and record completeness. They are not identity probabilities or proof of a match.'}};
 }
 module.exports={runResearch,classify,score,dedupe,SOURCES};
