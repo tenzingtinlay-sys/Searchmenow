@@ -538,34 +538,56 @@ function breach() {
 }
 
 function passwordCheck() {
-  view.innerHTML = `<h1>Password exposure check</h1>
-    <p class="sub">Check whether a password appears in known exposure records using Have I Been Pwned's free Pwned Passwords range API. Your browser sends the password to Searchmenow over HTTPS; Searchmenow hashes it and sends only the first five characters of the SHA-1 hash upstream. The full password is not sent to Have I Been Pwned and is not stored by this feature.</p>
-    <form class="search" id="pf"><input id="pw" type="password" autocomplete="new-password" placeholder="Enter a password to check" required maxlength="1024" aria-label="Password to check"><button class="btn btn-primary" id="pwb">${icon('shield')} Check exposure</button></form>
-    <p class="mono">Do not enter a password you currently use for a sensitive account. A positive result means it has appeared in exposure data; it does not prove your account was accessed. Never reuse an exposed password.</p>
-    <div id="pwout"></div>
-    <p class="mono">Data source: <a href="https://haveibeenpwned.com/Passwords" target="_blank" rel="noopener noreferrer">Have I Been Pwned — Pwned Passwords</a>.</p>`;
+  view.innerHTML = `<div class="security-page">
+    <div class="security-heading"><p class="eyebrow">ACCOUNT SECURITY</p><h1>Password &amp; account exposure</h1>
+    <p class="sub">Check a password against Have I Been Pwned's Pwned Passwords corpus. Optionally check a login email for known breach records or validate a phone number. These are separate checks; a phone lookup does not establish that a phone number was breached.</p></div>
+    <form class="security-form" id="pf">
+      <label for="account-id">Login email or phone number <span>(optional)</span></label>
+      <input id="account-id" type="text" autocomplete="off" inputmode="email" maxlength="254" placeholder="name@example.com or +14155552671" aria-label="Login email or phone number">
+      <p class="mono">Email checks search breach records. Phone checks return available validation and region metadata only. Enter only an account identifier you are authorized to check.</p>
+      <label for="pw">Password to check</label>
+      <input id="pw" type="password" autocomplete="new-password" placeholder="Enter a password to check" required maxlength="1024" aria-label="Password to check">
+      <button class="btn btn-primary" id="pwb" type="submit">${icon('shield')} Check exposure</button>
+    </form>
+    <p class="mono">Privacy: the browser sends the password to Searchmenow over HTTPS. Searchmenow hashes it and sends only the first five SHA-1 characters upstream. The full password is not sent to Have I Been Pwned and is not stored by this feature.</p>
+    <p class="mono">Do not enter a password currently used for a sensitive account. A positive match means it appeared in exposure data; it does not prove your account was accessed. Never reuse an exposed password.</p>
+    <div id="pwout" class="security-results" aria-live="polite"></div>
+    <p class="mono">Password data source: <a href="https://haveibeenpwned.com/Passwords" target="_blank" rel="noopener noreferrer">Have I Been Pwned — Pwned Passwords</a>.</p>
+  </div>`;
   $('pf').onsubmit = async (e) => {
     e.preventDefault();
-    const password = $('pw').value, out = $('pwout'), button = $('pwb');
+    const password = $('pw').value, account = $('account-id').value.trim(), out = $('pwout'), button = $('pwb');
+    const isEmail = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(account);
+    const digits = account.replace(/\\D/g, '');
+    const isPhone = !isEmail && digits.length >= 7 && digits.length <= 15 && /^[+\\d\\s().-]+$/.test(account);
+    if (account && !isEmail && !isPhone) { out.innerHTML = errBox('Enter a valid email address or phone number with country code, or leave this field blank.'); return; }
     button.disabled = true;
-    out.innerHTML = '<div class="stats"><span class="stream-cursor"></span><span>Checking exposure privately…</span></div>';
+    out.innerHTML = '<div class="stats"><span class="stream-cursor"></span><span>Checking password and selected account identifier…</span></div>';
+    const panels = [];
     try {
-      const r = await fetch('/api/public/password-check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }) });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok || d.error) throw new Error(d.error || 'Password check failed.');
-      if (!d.pwned) {
-        out.replaceChildren();
-      } else {
-        out.innerHTML = `<div class="notice err"><b>Password exposure match found</b><p>Observed ${Number(d.count).toLocaleString()} times in the source corpus. Do not use it; if it is used anywhere, change it and any reused passwords.</p></div><p class="mono">Only a partial password hash was sent upstream. Source: <a href="https://haveibeenpwned.com/Passwords" target="_blank" rel="noopener noreferrer">Have I Been Pwned Pwned Passwords</a>.</p>`;
-      }
+      const jobs = [fetch('/api/public/password-check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }) }).then(async r => { const d=await r.json().catch(()=>({})); if(!r.ok||d.error) throw Error(d.error||'Password check failed.'); return {kind:'password',data:d}; })];
+      if (isEmail) jobs.push(fetch('/api/public/breach-search?email='+encodeURIComponent(account), {headers:{Accept:'application/json'}}).then(async r=>{const d=await r.json().catch(()=>({}));if(!r.ok||d.error)throw Error(d.error||'Email breach check failed.');return {kind:'email',data:d};}));
+      if (isPhone) jobs.push(fetch('/api/public/lookup/phone?number='+encodeURIComponent(account), {headers:{Accept:'application/json'}}).then(async r=>{const d=await r.json().catch(()=>({}));if(!r.ok||d.error)throw Error(d.error||'Phone lookup failed.');return {kind:'phone',data:d};}));
+      const results = await Promise.allSettled(jobs);
+      const passwordResult=results.find(x=>x.status==='fulfilled'&&x.value.kind==='password');
+      if(passwordResult){const d=passwordResult.value.data;if(d.pwned)panels.push('<div class="notice err"><b>Password exposure match found</b><p>Observed '+Number(d.count).toLocaleString()+' times in the source corpus. Do not use it; change it anywhere it is used and replace reused passwords.</p></div>');}
+      const emailResult=results.find(x=>x.status==='fulfilled'&&x.value.kind==='email');
+      if(emailResult){const d=emailResult.value.data;const breaches=Array.isArray(d.breaches)?d.breaches:[];if(breaches.length)panels.push('<div class="notice err"><b>Email appears in breach records</b><p>'+breaches.length+' breach record(s) were returned by '+esc(d.source||'the breach source')+'.</p><ul>'+breaches.slice(0,20).map(b=>'<li><b>'+esc(b.name||b.domain||'Reported breach')+'</b>'+(b.date?' — '+esc(b.date):'')+(Array.isArray(b.data)&&b.data.length?' · exposed data: '+esc(b.data.join(', ')):'')+'</li>').join('')+'</ul></div>');}
+      const phoneResult=results.find(x=>x.status==='fulfilled'&&x.value.kind==='phone');
+      if(phoneResult){const d=phoneResult.value.data;panels.push('<div class="notice"><b>Phone lookup completed</b><p>Validation: '+(d.valid?'valid':'not confirmed')+' · Country: '+esc(d.country||'Unknown')+(d.lineType?' · Line type: '+esc(d.lineType):'')+'</p><p>This is not a phone-breach check and does not prove account ownership.</p></div>');}
+      const failed=results.filter(x=>x.status==='rejected');
+      if(passwordResult && !passwordResult.value.data.pwned) panels.push('<div class="notice"><b>No password match returned</b><p>No match was found in the checked Pwned Passwords corpus. This does not guarantee the password is safe.</p></div>');
+      if(isEmail && !emailResult) panels.push('<div class="notice err"><b>Email breach check unavailable</b><p>'+esc(failed.find(x=>x.reason)?.reason?.message||'Try again later.')+'</p></div>');
+      if(isPhone && !phoneResult) panels.push('<div class="notice err"><b>Phone lookup unavailable</b><p>'+esc(failed.find(x=>x.reason)?.reason?.message||'Try again later.')+'</p></div>');
+      if(!passwordResult) panels.push('<div class="notice err"><b>Password check unavailable</b><p>'+esc(failed[0]?.reason?.message||'Try again later.')+'</p></div>');
+      out.innerHTML=panels.join('');
       $('pw').value = '';
     } catch (err) { out.innerHTML = errBox(err.message); }
-    if ($('pwb')) $('pwb').disabled = false;
+    finally { if ($('pwb')) $('pwb').disabled = false; }
   };
   const existing = new URLSearchParams(location.search).get('check');
   if (existing === '1') $('pw').focus();
 }
-
 function lookup() {
   const kinds = { phone: ['number', '+14158586273'], email: ['email', 'name@example.com'], ip: ['ip', '8.8.8.8'] };
   view.innerHTML = `<h1>Phone, email &amp; IP lookup</h1><p class="sub">Powered by ${config.apilayer ? 'APILayer (Numverify, Mailboxlayer, IP to Location)' : 'available free sources'}. No account required; public lookups are rate-limited. Phone lookups validate numbers and return available carrier/region metadata, not live tracking.</p>
