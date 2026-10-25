@@ -8,6 +8,7 @@ const platforms = require('./platforms');
 const store = require('./store');
 const { deepSearch } = require('./deep');
 const osintTools = require('./osint-tools');
+const { runResearch } = require('./research-engine');
 
 // ---- Free public API keys (stored in data/api-keys.json) ----
 const DATA_DIR = process.env.DATA_DIR || (process.env.VERCEL ? '/tmp/searchmenow' : path.join(__dirname, '..', 'data'));
@@ -317,6 +318,20 @@ async function handler(req, res) {
     if ([...searchParams.values()].some(store.isOptedOut)) return json(res, 451, { error: 'This identifier has been removed from search results.' });
     const { code, body } = await collect(v1, req, searchParams);
     return json(res, code, body);
+  }
+  if (pathname === '/api/public/research' && req.method === 'GET') {
+    const query = (searchParams.get('q') || '').trim();
+    if (!query) return json(res, 400, { error: 'Enter a name, username, company, institution, domain or topic.' });
+    if (query.length > 180) return json(res, 400, { error: 'Search query is too long.' });
+    if (limited('research:' + ipOf(req), 8, 60 * 1000)) return json(res, 429, { error: 'Too many research searches. Wait a minute and try again.' });
+    if (store.isOptedOut(query)) return json(res, 451, { error: 'This identifier has been removed from search results at the owner’s request.' });
+    const requested = (searchParams.get('sources') || '').split(',').map(x => x.trim()).filter(Boolean);
+    const allowed = new Set(['wikipedia','wikidata','github','gitlab','orcid','openalex','bluesky','mastodon','hackernews']);
+    if (requested.some(x => !allowed.has(x))) return json(res, 400, { error: 'Unsupported source selected.' });
+    try {
+      const data = await runResearch(query, { type: searchParams.get('type') || 'auto', sources: requested.length ? requested : undefined });
+      return json(res, 200, data);
+    } catch (e) { return json(res, e.statusCode || 502, { error: e.message || 'Research failed.' }); }
   }
   if (pathname === '/api/public/osint-tools') return json(res, 200, { source: 'Searchmenow curated directory', upstream: 'https://osintframework.com/', license: 'MIT project inspiration; see upstream attribution', categories: osintTools });
   if (pathname === '/api/health') return json(res, 200, { ok: true });
