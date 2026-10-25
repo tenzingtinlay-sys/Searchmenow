@@ -518,8 +518,8 @@ function breach() {
   $('f').onsubmit = async (e) => {
     e.preventDefault();
     const out = $('out'), q = $('q').value.trim(); $('b').disabled = true;
-    history.replaceState(null, '', '?q=' + encodeURIComponent(q));
-    out.innerHTML = '<div class="stats"><span class="stream-cursor"></span><span>Searching breach records…</span></div>';
+    history.replaceState(null, '', location.pathname);
+    out.replaceChildren();
     try {
       const endpoint = location.pathname === '/breach-search' ? '/api/public/breach-search' : '/api/breach-search';
       const response = await fetch(endpoint + '?email=' + encodeURIComponent(q));
