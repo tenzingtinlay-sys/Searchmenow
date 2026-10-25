@@ -164,6 +164,7 @@ function landing() {
     <h2>Search without an account</h2><p class="sub">Choose a search tool and get started immediately.</p>
     <a class="btn btn-primary" href="/deep-search">${icon('search')} Start deep search ${icon('arrow')}</a>
   </div></section>`);
+  $('lkind').onchange = () => { $('lq').type = $('lkind').value === 'password' ? 'password' : 'text'; $('lq').placeholder = $('lkind').value === 'password' ? 'Enter password to check (not placed in URL)' : 'username, person, company, school, university, email or keyword'; };
   $('lf').onsubmit = (e) => {
     e.preventDefault();
     const q = $('lq').value.trim(), kind = $('lkind').value;
@@ -181,6 +182,7 @@ function landing() {
       const p = new URLSearchParams({ q, name: organizationModes[route].name, keywords: organizationModes[route].keywords });
       return go('/deep-search?' + p.toString());
     }
+    if (route === 'password') return go('/password-check'); // Never put passwords in URLs, query strings or browser history.
     const path = { deep:'/deep-search', social:'/social-search', people:'/people-search', breach:'/breach-search', password:'/password-check', phone:'/lookup?type=phone', email:'/lookup?type=email', ip:'/lookup?type=ip' }[route] || '/deep-search';
     const sep = path.includes('?') ? '&' : '?';
     go(path + sep + 'q=' + encodeURIComponent(q));
