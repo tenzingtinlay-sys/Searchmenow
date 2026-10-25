@@ -149,7 +149,7 @@ function landing() {
       <button class="btn btn-primary">${icon('search')} Search</button>
     </form>
     <p class="mono">Free public searches · no account or sign-in required · rate limits apply</p>
-    <p class="mono" style="margin-top:8px">For your safety, do not enter Aadhaar, PAN, passport or other government ID numbers. This service does not search or store government ID numbers.</p>
+    <p class="mono" style="margin-top:8px">For your safety, do not enter Aadhaar, PAN, passport or other government ID numbers. Common Aadhaar, PAN and passport formats are blocked; this service is not for government-ID lookups.</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px"><a class="btn btn-secondary" href="/deep-search">${icon('graph')} Deep search</a><a class="btn btn-secondary" href="/breach-search">${icon('shield')} Check breach exposure</a></div>
     <div class="kpis"><div><b>${config.platforms}</b><span>platforms</span></div><div><b>${config.peopleSources}</b><span>people sources</span></div><div><b>7</b><span>search types</span></div><div><b>Live</b><span>no stale cache</span></div></div>
   </section>
