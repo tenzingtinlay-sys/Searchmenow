@@ -7,6 +7,7 @@ const net = require('net');
 const platforms = require('./platforms');
 const store = require('./store');
 const { deepSearch } = require('./deep');
+const osintTools = require('./osint-tools');
 
 // ---- Free public API keys (stored in data/api-keys.json) ----
 const DATA_DIR = process.env.DATA_DIR || (process.env.VERCEL ? '/tmp/searchmenow' : path.join(__dirname, '..', 'data'));
@@ -280,6 +281,7 @@ async function handler(req, res) {
     const { code, body } = await collect(v1, req, searchParams);
     return json(res, code, body);
   }
+  if (pathname === '/api/public/osint-tools') return json(res, 200, { source: 'Searchmenow curated directory', upstream: 'https://osintframework.com/', license: 'MIT project inspiration; see upstream attribution', categories: osintTools });
   if (pathname === '/api/health') return json(res, 200, { ok: true });
 
   // ---- Accounts ----
