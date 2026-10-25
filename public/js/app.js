@@ -67,7 +67,7 @@ function autorun() {
 }
 
 // ---------- router ----------
-const publicRoutes = { '/': landing, '/login': () => auth('login'), '/signup': () => auth('signup'), '/pricing': pricing, '/contact': contact, '/opt-out': optOut, '/terms': terms, '/privacy': privacy };
+const publicRoutes = { '/': landing, '/deep-search': () => publicSearchPage(deep), '/breach-search': () => publicSearchPage(breach), '/login': () => auth('login'), '/signup': () => auth('signup'), '/pricing': pricing, '/contact': contact, '/opt-out': optOut, '/terms': terms, '/privacy': privacy };
 const dashRoutes = {
   '/dashboard': ['home', 'Home', home],
   '/dashboard/deep-search': ['deep', 'deep-search', deep],
@@ -83,6 +83,13 @@ const dashRoutes = {
 function render() {
   const p = location.pathname.replace(/(.)\/$/, '$1');
   window.scrollTo(0, 0);
+  if (p === '/deep-search' || p === '/breach-search') {
+    shellMounted = false;
+    page('<div class="wrap" style="padding:40px 24px;min-height:60vh"><div id="public-search-view"></div></div>');
+    view = $('public-search-view');
+    (p === '/deep-search' ? deep : breach)();
+    return;
+  }
   if (dashRoutes[p]) {
     if (!me) return go('/login?next=' + encodeURIComponent(location.pathname + location.search), true);
     shell();
@@ -109,7 +116,7 @@ addEventListener('popstate', render);
 // ---------- public site ----------
 function siteNav() {
   return `<header class="site-nav">${brand()}<nav class="links">
-    <a href="/pricing">Pricing</a><a href="/contact">Contact</a>
+    <a href="/deep-search">Deep search</a><a href="/breach-search">Breach check</a><a href="/pricing">Pricing</a><a href="/contact">Contact</a>
     ${me ? '<a class="btn btn-primary btn-sm" href="/dashboard">Dashboard</a>' : '<a href="/login">Sign in</a><a class="btn btn-primary btn-sm" href="/signup">Get started</a>'}
   </nav></header>`;
 }
@@ -126,7 +133,8 @@ function landing() {
     <h1>Search a username, email, name or phone across public sources</h1>
     <p>Searchmenow queries ${config.platforms}+ platforms and open data sources live, ranks matching public profiles and shows known breach exposure for an email.</p>
     <form class="search" id="lf"><input id="lq" placeholder="username, name@example.com, Jane Smith, +14155550123" required aria-label="Search"><button class="btn btn-primary">${icon('search')} Search</button></form>
-    <p class="mono">Free account · ${perDay(config.plans?.free?.daily)} · no card required</p>
+    <p class="mono">Try it instantly · no sign-in required for Deep Search or Breach Check</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px"><a class="btn btn-secondary" href="/deep-search">${icon('graph')} Deep search</a><a class="btn btn-secondary" href="/breach-search">${icon('shield')} Check breach exposure</a></div>
     <div class="kpis"><div><b>${config.platforms}</b><span>platforms</span></div><div><b>${config.peopleSources}</b><span>people sources</span></div><div><b>7</b><span>search types</span></div><div><b>Live</b><span>no stale cache</span></div></div>
   </section>
   <section class="site-section"><div class="wrap">
@@ -139,7 +147,7 @@ function landing() {
     <h2>Start searching for free</h2><p class="sub">Create an account in seconds.</p>
     <a class="btn btn-primary" href="${me ? '/dashboard' : '/signup'}">${me ? 'Open dashboard' : 'Create free account'} ${icon('arrow')}</a>
   </div></section>`);
-  $('lf').onsubmit = (e) => { e.preventDefault(); const target = routeFor($('lq').value); me ? go(target) : go('/signup?next=' + encodeURIComponent(target)); };
+  $('lf').onsubmit = (e) => { e.preventDefault(); const q = $('lq').value.trim(); go(q.includes('@') ? '/breach-search?q=' + encodeURIComponent(q) : '/deep-search?q=' + encodeURIComponent(q)); };
 }
 
 function auth(mode) {
@@ -308,9 +316,11 @@ function home() {
   $('hq').focus();
 }
 
+function publicSearchPage(fn) { page('<div class="wrap" style="padding:32px 24px"><div id="public-search-view"></div></div>'); view = $('public-search-view'); fn(); }
+
 function deep() {
   const qs = new URLSearchParams(location.search);
-  view.innerHTML = `<h1>Deep search</h1><p class="sub">Start from one username, email, full name or website. Searchmenow reads the public profiles it finds, follows every linked account, website and email, and scores how likely each one belongs to the same person. 1 search credit.</p>
+  view.innerHTML = `<h1>Deep search</h1><p class="sub">Start from one username, email, full name or website. Searchmenow follows links found in public profiles, explores linked accounts and websites up to three hops, and scores the evidence. Matches are leads, not proof of identity. No sign-in required; rate limits apply.</p>
     <form id="f">
       <div class="search" style="display:flex;gap:8px;margin-bottom:12px"><input id="q" placeholder="username, name@example.com, Jane Smith or example.com" required aria-label="Seed"><button class="btn btn-primary" id="b">${icon('graph')} Deep search</button></div>
       <details id="opts" style="margin-bottom:24px" ${qs.get('name') || qs.get('location') || qs.get('keywords') ? 'open' : ''}><summary class="mono" style="cursor:pointer;padding:6px 0">Logic filters &amp; depth</summary>
@@ -352,7 +362,7 @@ function deep() {
     };
     const schedule = () => { clearTimeout(timer); timer = setTimeout(draw, 120); };
     try {
-      await stream('/api/deep-search?' + params, (ev) => {
+      await stream((location.pathname === '/deep-search' ? '/api/public/deep-search?' : '/api/deep-search?') + params, (ev) => {
         if (ev.type === 'step') $('st').textContent = ev.text;
         else if (ev.type === 'identity') { ids.set(ev.key, ev); schedule(); }
         else if (ev.type === 'profile') {
@@ -423,7 +433,7 @@ function people() {
 }
 
 function breach() {
-  view.innerHTML = `<h1>Breach search</h1><p class="sub">Check whether an email appears in known data breaches. Source: ${esc(config.breachSource)}. 1 search credit.</p>
+  view.innerHTML = `<h1>Breach search</h1><p class="sub">Check whether an email appears in known breach records from ${esc(config.breachSource)}. This reports breach names and exposed data categories, not passwords. No sign-in required; rate limits apply.</p>
     <form class="search" id="f"><input id="q" type="email" placeholder="name@example.com" required><button class="btn btn-primary" id="b">${icon('search')} Search</button></form><div id="out"></div>`;
   $('f').onsubmit = async (e) => {
     e.preventDefault();
@@ -431,7 +441,10 @@ function breach() {
     history.replaceState(null, '', '?q=' + encodeURIComponent(q));
     out.innerHTML = '<div class="stats"><span class="stream-cursor"></span><span>Searching breach records…</span></div>';
     try {
-      const d = await (await searchFetch('/api/breach-search?email=' + encodeURIComponent(q))).json();
+      const endpoint = location.pathname === '/breach-search' ? '/api/public/breach-search' : '/api/breach-search';
+      const response = await fetch(endpoint + '?email=' + encodeURIComponent(q));
+      const d = await response.json();
+      if (!response.ok || d.error) throw new Error(d.error || 'Breach search failed.');
       out.innerHTML = !d.breaches.length ? '<div class="notice ok">No known breaches found for this email.</div>'
         : `<div class="stats"><span>${d.breaches.length} breaches found</span></div><div class="results">${d.breaches.map((b) => `<div class="row"><div><b>${esc(b.name)}</b> <span class="mono">${esc(b.domain || '')}</span><br><span class="mono">${esc(b.data.join(', '))}</span></div><span class="pill">${esc(b.date)}</span></div>`).join('')}</div>`;
     } catch (err) { if (document.body.contains(out)) out.innerHTML = errBox(err.message); }
