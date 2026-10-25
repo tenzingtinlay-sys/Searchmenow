@@ -329,7 +329,7 @@ async function handler(req, res) {
     const allowed = new Set(['wikipedia','wikidata','github','gitlab','orcid','openalex','bluesky','mastodon','hackernews']);
     if (requested.some(x => !allowed.has(x))) return json(res, 400, { error: 'Unsupported source selected.' });
     try {
-      const data = await runResearch(query, { type: searchParams.get('type') || 'auto', sources: requested.length ? requested : undefined });
+      const data = await runResearch(query, { type: searchParams.get('type') || 'auto', context: searchParams.get('context') || '', sources: requested.length ? requested : undefined });
       return json(res, 200, data);
     } catch (e) { return json(res, e.statusCode || 502, { error: e.message || 'Research failed.' }); }
   }
