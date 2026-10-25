@@ -43,7 +43,7 @@ function score(x,q,sources=1) {
  const overlap=(a,b)=>a.length?a.filter(t=>b.includes(t)).length/a.length:0;
  const exact=String(x.title).toLowerCase()===q.toLowerCase()?1:0;
  const sw=SOURCES.find(s=>s.name===x.source)?.weight||.6;
- const complete=Math.min(1,(x.title?.length?.35:0)+(x.url?.length?.25:0)+(x.snippet?.length?.25:0)+(x.updatedAt?.length?.15:0));
+ const complete=Math.min(1,(x.title && x.title.length ? 0.35 : 0)+(x.url && x.url.length ? 0.25 : 0)+(x.snippet && x.snippet.length ? 0.25 : 0)+(x.updatedAt && x.updatedAt.length ? 0.15 : 0));
  return Math.max(0,Math.min(100,Math.round(100*(.34*overlap(qt,tt)+.24*overlap(qt,body)+.18*exact+.14*sw+.06*complete+.04*Math.min(1,sources/3)))));
 }
 function dedupe(items,q) {
