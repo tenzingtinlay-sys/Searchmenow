@@ -1,0 +1,2 @@
+Searchmenow GitHub-to-Cloudflare deployment check.
+This file is a harmless deployment verification marker.
