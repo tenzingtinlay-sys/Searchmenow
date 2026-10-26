@@ -1,50 +1,48 @@
 # Searchmenow
 
-Live OSINT search: usernames, names, emails (breaches), phone numbers and IPs across public sources,
-with accounts, daily search credits, search history, opt-out, and a free public API.
+Live OSINT search for public usernames, names, breach exposure, phone/email/IP lookups, with accounts, daily search credits, search history, opt-out controls, and a public API.
 
+## Repository layout
+
+- `server/` — Node.js HTTP backend and search endpoints
+- `public/` — static website, CSS and browser JavaScript
+- `api/` — legacy Vercel adapter (retained temporarily for migration reference)
+- `.github/workflows/run-nodejs.yml` — syntax, startup and smoke checks
+
+## Run locally
+
+```sh
+cp .env.example .env
+npm start
 ```
-server/
-  index.js       HTTP server, search endpoints, /api/v1 public API
-  store.js       users, sessions, credits, history, opt-outs, contact messages (data/store.json)
-  platforms.js   username platforms (add more here)
-public/
-  index.html     app shell
-  js/app.js      public site (/, /pricing, /login, /signup, /contact, /opt-out, /terms, /privacy) + dashboard
-  js/icons.js    icons (Tabler, MIT)
-  css/app.css
-```
 
-Run: `cp .env.example .env && npm start`, open http://localhost:3000. All keys in `.env.example` are optional.
-Runtime data (accounts, API keys) is stored in `data/` and is not committed.
+Then open http://localhost:3000. All keys in `.env.example` are optional. Runtime data is stored locally under `data/` and is not committed.
 
-## Deploy to Vercel (GitHub Actions)
+## Cloudflare publishing
 
-`.github/workflows/vercel.yml` checks the code on every push/PR, then deploys:
-pushes to `main` go to production, pull requests get a preview URL.
+The production static site is published through Cloudflare Pages from this GitHub repository:
 
-One-time setup:
-1. Create a Vercel account and a token: https://vercel.com/account/tokens
-2. Link the project once (locally): `npx vercel link` → this creates `.vercel/project.json` with `orgId` and `projectId`.
-3. In GitHub → repo → Settings → Secrets and variables → Actions, add:
-   `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`.
-4. In Vercel → Project → Settings → Environment Variables, add any optional keys from `.env.example`.
+- **Cloudflare Pages project:** `searchmenow`
+- **Production address:** https://searchmenow.pages.dev
+- **Source branch:** `main`
+- **Static output directory:** `public`
 
-### Google Cloud search (optional)
-Set `GOOGLE_API_KEY` as a **server-side environment variable** in Vercel for Production and Preview. Enable **YouTube Data API v3** and **Places API (New)** in the Google Cloud project first. The server exposes:
-- `GET /api/google/status` — reports whether a key is configured (does not validate it).
+Cloudflare Pages is connected to GitHub, so commits pushed to `main` trigger a Pages deployment. The Vercel deployment workflow and `vercel.json` have been removed so GitHub no longer deploys this project to Vercel.
+
+### Backend migration status — not yet complete
+
+The existing backend in `server/` uses Node.js HTTP server APIs and file-based persistence for accounts, sessions, opt-outs and API keys. Cloudflare Pages does not run that Node.js server merely by publishing `public/`. To make all features work on Cloudflare, the backend must be migrated to a Cloudflare-compatible runtime and durable storage (for example, a Cloudflare Worker/Container plus D1 or another supported persistent store), and server-side secrets must be configured there. Until that work is deployed and smoke-tested, do not assume account, search API or other server-backed features work on the Pages address.
+
+## Optional Google Cloud search
+
+Set `GOOGLE_API_KEY` as a server-side secret only after the Cloudflare backend is deployed. Enable YouTube Data API v3 and Places API (New) in Google Cloud. The backend endpoints are:
+
+- `GET /api/google/status` — reports whether a key is configured.
 - `GET /api/public/google/youtube?q=...` — public YouTube video/channel search.
-- `GET /api/public/google/places?q=...` — Google Places text search, including map URLs and coordinates.
+- `GET /api/public/google/places?q=...` — Google Places text search.
 
-The key is never returned to the browser. These endpoints have per-IP rate limits, but they are public endpoints and still consume your Google quota. Restrict the key to only the APIs used; review Google Cloud usage and billing before production. If you also want CI to run authenticated provider tests, add `GOOGLE_API_KEY` under GitHub → Settings → Secrets and variables → Actions; the current deployment workflow does not need the key to deploy because Vercel stores runtime environment variables separately. An API key alone does not enable Google Sign-In or access private user data; those require OAuth credentials.
+The key must never be returned to the browser. These public endpoints consume Google quota; restrict the key to only the required APIs and monitor usage/billing. A Google API key alone does not enable Google Sign-In or private-data access.
 
-Note: on Vercel the file store lives in `/tmp`, which is temporary. Accounts and API keys can reset
-when Vercel recycles the function. For lasting data, connect a database (e.g. Vercel Postgres / Upstash).
+## Environment variables
 
-### One address only
-In production the app answers only on your main Vercel domain (`SITE_HOST`, default: the project's
-production domain, e.g. `searchmenow.vercel.app`). Any other address — deployment URLs, old domains —
-redirects there with a 308, pages carry a canonical link to it, and browser API calls are only allowed
-from it. Preview deployments for pull requests are not redirected. To use a custom domain, add it in
-Vercel → Project → Domains and set `SITE_HOST` to it. To get `searchmenow.vercel.app`, name the Vercel
-project `searchmenow` when you run `npx vercel link`.
+See `.env.example`. Keep secrets out of Git and configure them as server-side Cloudflare secrets when the backend migration is ready.
